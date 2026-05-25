@@ -59,18 +59,31 @@ graph LR
 
 ### Selected commands
 
-| Action                | Shortcut       |
-| --------------------- | -------------- |
-| Bold                  | `⌘B`           |
-| Italic                | `⌘I`           |
-| Inline code           | `⌘E`           |
-| Link (with selection) | `⌘K`           |
-| Cycle heading forward | `⌘]`           |
-| Cycle heading back    | `⌘[`           |
-| Set H1 / H2 / H3      | `⌘⌥1/2/3`      |
-| Slash menu            | `/`            |
+| Action                | Shortcut  |
+| --------------------- | --------- |
+| Bold                  | `⌘B`      |
+| Italic                | `⌘I`      |
+| Inline code           | `⌘E`      |
+| Link (with selection) | `⌘K`      |
+| Cycle heading forward | `⌘]`      |
+| Cycle heading back    | `⌘[`      |
+| Set H1 / H2 / H3      | `⌘⌥1/2/3` |
+| Ordered list          | `⌘⇧7`     |
+| Bullet list           | `⌘⇧8`     |
+| Task list             | `⌘⇧9`     |
+| Slash menu            | `/`       |
 
-_Tables themselves aren't a TipTap node yet — the row above is rendered as a plain markdown table by the StarterKit's text parser. Native table editing arrives in **M2.3**._
+### What's also working now
+
+- [x] Syntax-highlighted code blocks (M2.1)
+- [x] Click-to-edit mermaid diagrams (M2.1)
+- [x] Task lists, like this one (M2.2)
+- [x] Resizable tables with alignment colons that round-trip (M2.3)
+- [x] KaTeX math — inline $E = mc^2$ and the block form below (M2.4)
+
+$$
+\int_0^\infty e^{-x^2}\, dx = \frac{\sqrt{\pi}}{2}
+$$
 
 ### Notes from the build log
 
