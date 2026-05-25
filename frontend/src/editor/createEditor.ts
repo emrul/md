@@ -13,6 +13,7 @@ import { AlignedTableCell, AlignedTableHeader } from './extensions/TableCellAlig
 import { Markdown } from 'tiptap-markdown'
 import { EnhancedCodeBlock } from './extensions/CodeBlock'
 import { lowlight } from './extensions/lowlight'
+import { MathInline, MathBlock } from './extensions/Math'
 import { HybridReveal } from './extensions/hybrid/HybridReveal'
 import { HeadingCycle } from './extensions/HeadingCycle'
 import { SlashMenu } from './extensions/slash/SlashMenu'
@@ -40,6 +41,8 @@ export function createEditor(opts: CreateEditorOptions): Editor {
       TableRow,
       AlignedTableHeader,
       AlignedTableCell,
+      MathInline,
+      MathBlock,
       HybridReveal,
       HeadingCycle,
       SlashMenu,

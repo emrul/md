@@ -11,6 +11,7 @@ Sample documents that exercise each editor feature. Open any of them with **File
 | [05-kitchen-sink.md](./05-kitchen-sink.md) | Everything mixed together for a round-trip stress test |
 | [06-task-lists.md](./06-task-lists.md) | GitHub-style `- [ ]` / `- [x]` task lists with nesting |
 | [07-tables.md](./07-tables.md) | GFM pipe-tables with resizable columns + hover toolbar |
+| [08-math.md](./08-math.md) | KaTeX math — inline `$…$` and block `$$…$$` with click-to-edit |
 
 ## Try this
 

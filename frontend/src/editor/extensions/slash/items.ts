@@ -96,6 +96,35 @@ export const SLASH_ITEMS: SlashItem[] = [
         .run(),
   },
   {
+    id: 'math',
+    label: 'Math (inline)',
+    hint: '$x^2$',
+    search: ['math', 'inline', 'katex', 'latex', 'formula'],
+    apply: (e, r) =>
+      e
+        .chain()
+        .focus()
+        .deleteRange(r)
+        .insertContent({ type: 'mathInline', attrs: { latex: 'x^2' } })
+        .run(),
+  },
+  {
+    id: 'mathblock',
+    label: 'Math Block',
+    hint: '$$ … $$',
+    search: ['math', 'block', 'display', 'katex', 'latex', 'equation'],
+    apply: (e, r) =>
+      e
+        .chain()
+        .focus()
+        .deleteRange(r)
+        .insertContent({
+          type: 'mathBlock',
+          attrs: { latex: '\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}' },
+        })
+        .run(),
+  },
+  {
     id: 'hr',
     label: 'Horizontal Rule',
     hint: '---',

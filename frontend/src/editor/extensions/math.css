@@ -1,0 +1,101 @@
+.math-inline,
+.math-block {
+  font-family: 'KaTeX_Main', 'Times New Roman', serif;
+}
+
+.math-inline {
+  display: inline-block;
+  vertical-align: middle;
+  padding: 0 2px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.math-inline .math-rendered {
+  display: inline-block;
+}
+
+.math-inline .math-input {
+  display: none;
+}
+
+.math-inline[data-math-active='true'] .math-rendered {
+  display: none;
+}
+
+.math-inline[data-math-active='true'] .math-input {
+  display: inline-block;
+  font-family: 'SF Mono', 'Fira Mono', Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  padding: 0 4px;
+  border: 1px solid var(--link);
+  border-radius: 3px;
+  outline: none;
+  background: var(--bg);
+  color: var(--text);
+  min-width: 6ch;
+  width: auto;
+  box-sizing: content-box;
+}
+
+.math-block {
+  display: block;
+  margin: 1rem 0;
+  padding: 1rem;
+  text-align: center;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.math-block:hover {
+  background: var(--btn-hover);
+}
+
+.math-block[data-math-active='true'] {
+  background: var(--bg);
+  border-color: var(--link);
+  text-align: left;
+  cursor: text;
+}
+
+.math-block .math-rendered {
+  display: block;
+  overflow-x: auto;
+}
+
+.math-block .math-input {
+  display: none;
+}
+
+.math-block[data-math-active='true'] .math-rendered {
+  display: none;
+}
+
+.math-block[data-math-active='true'] .math-input {
+  display: block;
+  width: 100%;
+  font-family: 'SF Mono', 'Fira Mono', Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  padding: 0.5rem;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  resize: vertical;
+  min-height: 4em;
+  box-sizing: border-box;
+}
+
+.math-rendered.is-empty {
+  color: var(--muted);
+  font-style: italic;
+  font-size: 0.85em;
+}
+
+.math-rendered.is-error {
+  color: #991b1b;
+  font-family: 'SF Mono', 'Fira Mono', Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  white-space: pre-wrap;
+}
