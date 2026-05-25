@@ -9,6 +9,7 @@ import { mountToolbar } from '../ui/toolbar'
 import { mountStatusbar } from '../ui/statusbar'
 import { bindBubbleMenu, createBubbleMenu } from '../ui/bubbleMenu'
 import { mountCodeBlockLangPicker } from '../ui/codeBlockLangPicker'
+import { mountTableToolbar } from '../ui/tableToolbar'
 import { bindCanvasClick } from './canvasClick'
 
 const editorEl = document.querySelector<HTMLElement>('#editor')
@@ -43,6 +44,7 @@ toolbar = mountToolbar(editor)
 statusbar = mountStatusbar(ws)
 bindBubbleMenu(bubbleRefs, ws)
 mountCodeBlockLangPicker(editor)
+mountTableToolbar(editor)
 bindCanvasClick(editor)
 
 toolbar.refresh()

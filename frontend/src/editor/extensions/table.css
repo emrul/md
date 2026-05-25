@@ -1,0 +1,74 @@
+.ProseMirror table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 1rem 0;
+  font-size: 0.95em;
+  line-height: 1.5;
+}
+
+.ProseMirror table td,
+.ProseMirror table th {
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+  vertical-align: top;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.ProseMirror table th {
+  background: var(--toolbar-bg);
+  font-weight: 600;
+  text-align: left;
+}
+
+.ProseMirror table td > p,
+.ProseMirror table th > p {
+  margin: 0;
+}
+
+.ProseMirror table .selectedCell {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.ProseMirror table .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(59, 130, 246, 0.05);
+  pointer-events: none;
+}
+
+.ProseMirror .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--link);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms;
+}
+
+.ProseMirror table:hover .column-resize-handle {
+  opacity: 0.25;
+}
+
+.ProseMirror .column-resize-handle:hover,
+.ProseMirror table.resize-cursor .column-resize-handle {
+  opacity: 0.7;
+}
+
+.ProseMirror.resize-cursor {
+  cursor: col-resize;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.tableWrapper table {
+  margin: 0;
+}

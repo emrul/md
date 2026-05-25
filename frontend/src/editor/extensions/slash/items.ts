@@ -66,6 +66,19 @@ export const SLASH_ITEMS: SlashItem[] = [
     apply: (e, r) => e.chain().focus().deleteRange(r).toggleCodeBlock().run(),
   },
   {
+    id: 'table',
+    label: 'Table',
+    hint: '3×2',
+    search: ['table', 'grid', 'rows', 'columns'],
+    apply: (e, r) =>
+      e
+        .chain()
+        .focus()
+        .deleteRange(r)
+        .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+        .run(),
+  },
+  {
     id: 'mermaid',
     label: 'Mermaid Diagram',
     hint: '```mermaid',

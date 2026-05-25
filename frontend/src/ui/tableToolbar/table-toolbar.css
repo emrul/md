@@ -1,0 +1,47 @@
+.table-toolbar {
+  position: fixed;
+  z-index: 60;
+  display: none;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  padding: 3px;
+  gap: 1px;
+  font-size: 12px;
+}
+
+.table-toolbar.is-visible {
+  display: inline-flex;
+}
+
+.table-toolbar .tt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 12px;
+  font-family: inherit;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.table-toolbar .tt-btn:hover {
+  background: var(--btn-hover);
+}
+
+.table-toolbar .tt-btn.tt-danger:hover {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.table-toolbar .tt-sep {
+  width: 1px;
+  background: var(--border);
+  margin: 2px 0;
+}
