@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MarkdownMD</title>
+  </head>
+  <body>
+    <div class="app">
+      <!-- Menu bar -->
+      <div class="menu-bar">
+        <div class="menu">
+          <span class="menu-label">File</span>
+          <div class="menu-drop">
+            <div class="menu-item" id="mi-new">New <kbd>⌘N</kbd></div>
+            <div class="menu-item" id="mi-open">Open… <kbd>⌘O</kbd></div>
+            <div class="menu-sep"></div>
+            <div class="menu-item" id="mi-save">Save <kbd>⌘S</kbd></div>
+            <div class="menu-item" id="mi-saveas">Save As… <kbd>⇧⌘S</kbd></div>
+          </div>
+        </div>
+        <div class="menu">
+          <span class="menu-label">Format</span>
+          <div class="menu-drop">
+            <div class="menu-item" id="mi-bold">Bold <kbd>⌘B</kbd></div>
+            <div class="menu-item" id="mi-italic">Italic <kbd>⌘I</kbd></div>
+            <div class="menu-item" id="mi-strike">Strikethrough</div>
+            <div class="menu-sep"></div>
+            <div class="menu-item" id="mi-code">Inline Code</div>
+            <div class="menu-item" id="mi-codeblock">Code Block</div>
+            <div class="menu-sep"></div>
+            <div class="menu-item" id="mi-link">Link… <kbd>⌘K</kbd></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <button class="tb" id="tb-bold" title="Bold (⌘B)">Bold</button>
+        <button class="tb" id="tb-italic" title="Italic (⌘I)">Italic</button>
+        <button class="tb tb-strike" id="tb-strike" title="Strikethrough">Strike</button>
+        <div class="tb-sep"></div>
+        <button class="tb" id="tb-code" title="Inline code">Code</button>
+        <div class="tb-sep"></div>
+        <button class="tb" id="tb-h1" title="Heading 1">H1</button>
+        <button class="tb" id="tb-h2" title="Heading 2">H2</button>
+        <button class="tb" id="tb-h3" title="Heading 3">H3</button>
+        <div class="tb-sep"></div>
+        <button class="tb" id="tb-ul" title="Bullet list">Bullet list</button>
+        <button class="tb" id="tb-ol" title="Ordered list">Ordered list</button>
+        <div class="tb-sep"></div>
+        <button class="tb" id="tb-quote" title="Blockquote">Quote</button>
+        <button class="tb" id="tb-codeblock" title="Code block">Code block</button>
+        <button class="tb" id="tb-hr" title="Horizontal rule">Horizontal rule</button>
+        <div class="tb-sep"></div>
+        <button class="tb" id="tb-link" title="Insert link (⌘K)">Link</button>
+        <button class="tb" id="tb-image" title="Insert image">Image</button>
+        <div class="tb-sep"></div>
+        <button class="tb" id="tb-undo" title="Undo">Undo</button>
+        <button class="tb" id="tb-redo" title="Redo">Redo</button>
+      </div>
+
+      <!-- Editor -->
+      <div class="editor-outer">
+        <div class="editor-scroll">
+          <div id="editor"></div>
+        </div>
+      </div>
+
+      <!-- Status bar -->
+      <div class="status-bar">
+        <span id="st-words">0 words</span>
+        <span id="st-chars">0 characters</span>
+        <span id="st-lines">0 lines</span>
+        <span id="st-file" style="margin-left: auto">Markdown</span>
+      </div>
+    </div>
+    <script type="module" src="/src/app/main.ts"></script>
+  </body>
+</html>

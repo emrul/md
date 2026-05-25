@@ -1,0 +1,15 @@
+:root {
+  --bg: #ffffff;
+  --toolbar-bg: #f9fafb;
+  --border: #e5e7eb;
+  --text: #111827;
+  --muted: #6b7280;
+  --accent: #111827;
+  --accent-fg: #ffffff;
+  --btn-hover: #f3f4f6;
+  --btn-active-bg: #111827;
+  --btn-active-fg: #ffffff;
+  --link: #2563eb;
+  --code-bg: #f3f4f6;
+  --focus-ring: rgba(59, 130, 246, 0.5);
+}

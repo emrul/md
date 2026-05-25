@@ -1,0 +1,37 @@
+.mermaid-block {
+  margin: 1rem 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.mermaid-preview {
+  padding: 1.25rem;
+  background: var(--bg);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--border);
+}
+
+.mermaid-preview svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-preview.is-error {
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 12px;
+  font-family: 'SF Mono', Consolas, monospace;
+  white-space: pre-wrap;
+  justify-content: flex-start;
+  padding: 1rem;
+}
+
+.mermaid-block pre {
+  margin: 0;
+  border-radius: 0;
+  border-top: none;
+  background: #1e1e2e;
+}

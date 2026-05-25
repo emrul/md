@@ -1,0 +1,39 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e40af"/>
+      <stop offset="100%" stop-color="#0c1e3e"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1024" height="1024" rx="220" fill="url(#bg)"/>
+
+  <!-- Subtle background document lines -->
+  <g fill="rgba(255,255,255,0.10)">
+    <rect x="230" y="700" width="540" height="22" rx="4"/>
+    <rect x="230" y="750" width="420" height="22" rx="4"/>
+    <rect x="230" y="800" width="490" height="22" rx="4"/>
+  </g>
+
+  <!-- The M -->
+  <g fill="#f8fafc">
+    <!-- Left vertical bar -->
+    <rect x="222" y="240" width="100" height="380" rx="14"/>
+    <!-- Right vertical bar -->
+    <rect x="600" y="240" width="100" height="380" rx="14"/>
+    <!-- Left diagonal stroke (\) -->
+    <polygon points="222,240 322,240 514,540 420,540" />
+    <!-- Right diagonal stroke (/) -->
+    <polygon points="600,240 700,240 506,540 412,540" />
+  </g>
+
+  <!-- Markdown down-arrow -->
+  <g fill="url(#accent)">
+    <rect x="772" y="240" width="90" height="220" rx="14"/>
+    <polygon points="722,440 912,440 817,580"/>
+  </g>
+</svg>

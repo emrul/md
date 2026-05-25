@@ -1,0 +1,11 @@
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 16px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--toolbar-bg);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}

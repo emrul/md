@@ -1,0 +1,35 @@
+{
+  "name": "frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build:dev": "vite build --minify false --mode development",
+    "build": "vite build --mode production",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write \"src/**/*.{ts,js,css,html}\" \"*.{json,html}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,js,css,html}\" \"*.{json,html}\""
+  },
+  "dependencies": {
+    "@tiptap/core": "^2.11.5",
+    "@tiptap/extension-bubble-menu": "^2.27.2",
+    "@tiptap/extension-character-count": "^2.11.5",
+    "@tiptap/extension-code-block": "^2.11.5",
+    "@tiptap/extension-floating-menu": "^2.27.2",
+    "@tiptap/extension-image": "^2.11.5",
+    "@tiptap/extension-link": "^2.11.5",
+    "@tiptap/extension-placeholder": "^2.11.5",
+    "@tiptap/starter-kit": "^2.11.5",
+    "@tiptap/suggestion": "^2.27.2",
+    "@wailsio/runtime": "latest",
+    "mermaid": "^11.4.1",
+    "tiptap-markdown": "^0.8.10"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.3",
+    "typescript": "^6.0.3",
+    "vite": "^5.0.0"
+  }
+}

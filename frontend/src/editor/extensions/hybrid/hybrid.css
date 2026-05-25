@@ -1,0 +1,26 @@
+:root {
+  --hybrid-marker: rgba(17, 24, 39, 0.32);
+}
+
+.hybrid-marker {
+  color: var(--hybrid-marker);
+  font-weight: 400;
+  font-style: normal;
+  text-decoration: none;
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+  font-size: 0.92em;
+  letter-spacing: 0;
+  user-select: none;
+  pointer-events: none;
+  white-space: pre;
+}
+
+
+.ProseMirror strong .hybrid-marker,
+.ProseMirror em .hybrid-marker,
+.ProseMirror s .hybrid-marker,
+.ProseMirror code .hybrid-marker,
+.ProseMirror a .hybrid-marker {
+  font-weight: inherit;
+  font-style: inherit;
+}
