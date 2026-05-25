@@ -9,6 +9,7 @@ Sample documents that exercise each editor feature. Open any of them with **File
 | [03-code-blocks.md](./03-code-blocks.md) | Syntax-highlighted code blocks across many languages, language picker |
 | [04-mermaid-diagrams.md](./04-mermaid-diagrams.md) | Mermaid live-preview blocks — flowcharts, sequence, class, gantt |
 | [05-kitchen-sink.md](./05-kitchen-sink.md) | Everything mixed together for a round-trip stress test |
+| [06-task-lists.md](./06-task-lists.md) | GitHub-style `- [ ]` / `- [x]` task lists with nesting |
 
 ## Try this
 

@@ -5,12 +5,15 @@ import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
 import CharacterCount from '@tiptap/extension-character-count'
 import { BubbleMenu } from '@tiptap/extension-bubble-menu'
+import TaskList from '@tiptap/extension-task-list'
+import TaskItem from '@tiptap/extension-task-item'
 import { Markdown } from 'tiptap-markdown'
 import { EnhancedCodeBlock } from './extensions/CodeBlock'
 import { lowlight } from './extensions/lowlight'
 import { HybridReveal } from './extensions/hybrid/HybridReveal'
 import { HeadingCycle } from './extensions/HeadingCycle'
 import { SlashMenu } from './extensions/slash/SlashMenu'
+import './extensions/task-list.css'
 import { bubbleMenuShouldShow } from '../ui/bubbleMenu'
 import './editor.css'
 
@@ -27,6 +30,8 @@ export function createEditor(opts: CreateEditorOptions): Editor {
     extensions: [
       StarterKit.configure({ codeBlock: false }),
       EnhancedCodeBlock.configure({ lowlight, defaultLanguage: null }),
+      TaskList,
+      TaskItem.configure({ nested: true }),
       HybridReveal,
       HeadingCycle,
       SlashMenu,

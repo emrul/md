@@ -96,6 +96,12 @@ export function registerCommands(ws: Workspace): void {
     handler: () => editor.chain().focus().toggleOrderedList().run(),
   })
   commands.register({
+    id: 'format.taskList',
+    label: 'Task List',
+    keybinding: 'Cmd+Shift+9',
+    handler: () => editor.chain().focus().toggleTaskList().run(),
+  })
+  commands.register({
     id: 'format.blockquote',
     label: 'Blockquote',
     keybinding: 'Cmd+Shift+B',

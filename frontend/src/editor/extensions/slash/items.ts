@@ -45,6 +45,13 @@ export const SLASH_ITEMS: SlashItem[] = [
     apply: (e, r) => e.chain().focus().deleteRange(r).toggleOrderedList().run(),
   },
   {
+    id: 'task',
+    label: 'Task List',
+    hint: '- [ ]',
+    search: ['task', 'todo', 'check', 'checkbox'],
+    apply: (e, r) => e.chain().focus().deleteRange(r).toggleTaskList().run(),
+  },
+  {
     id: 'quote',
     label: 'Blockquote',
     hint: '>',
