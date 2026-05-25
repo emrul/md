@@ -6,7 +6,8 @@ import Placeholder from '@tiptap/extension-placeholder'
 import CharacterCount from '@tiptap/extension-character-count'
 import { BubbleMenu } from '@tiptap/extension-bubble-menu'
 import { Markdown } from 'tiptap-markdown'
-import { MermaidCodeBlock } from './extensions/MermaidCodeBlock'
+import { EnhancedCodeBlock } from './extensions/CodeBlock'
+import { lowlight } from './extensions/lowlight'
 import { HybridReveal } from './extensions/hybrid/HybridReveal'
 import { HeadingCycle } from './extensions/HeadingCycle'
 import { SlashMenu } from './extensions/slash/SlashMenu'
@@ -25,7 +26,7 @@ export function createEditor(opts: CreateEditorOptions): Editor {
     element: opts.element,
     extensions: [
       StarterKit.configure({ codeBlock: false }),
-      MermaidCodeBlock,
+      EnhancedCodeBlock.configure({ lowlight, defaultLanguage: null }),
       HybridReveal,
       HeadingCycle,
       SlashMenu,

@@ -15,6 +15,13 @@
   white-space: pre;
 }
 
+.hybrid-marker.hybrid-fence {
+  display: block;
+  color: rgba(205, 214, 244, 0.45);
+  font-size: 0.85em;
+  line-height: 1.4;
+}
+
 
 .ProseMirror strong .hybrid-marker,
 .ProseMirror em .hybrid-marker,

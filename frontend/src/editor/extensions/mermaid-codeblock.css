@@ -11,7 +11,8 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
 }
 
 .mermaid-preview svg {
@@ -30,8 +31,18 @@
 }
 
 .mermaid-block pre {
+  display: none;
   margin: 0;
   border-radius: 0;
   border-top: none;
   background: #1e1e2e;
+}
+
+.mermaid-block.is-editing pre {
+  display: block;
+  border-top: 1px solid var(--border);
+}
+
+.mermaid-block.is-editing .mermaid-preview {
+  display: none;
 }

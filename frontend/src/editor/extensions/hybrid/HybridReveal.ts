@@ -123,8 +123,12 @@ function addBlockMarkers(doc: PMNode, from: number, to: number, decorations: Dec
       }
       case 'codeBlock': {
         const lang = (node.attrs.language as string | undefined) ?? ''
-        decorations.push(makeMarker(pos + 1, '```' + lang + '\n', -1, `cb-open-${pos}`))
-        decorations.push(makeMarker(pos + node.nodeSize - 1, '\n```', 1, `cb-close-${pos}`))
+        decorations.push(
+          makeMarker(pos + 1, '```' + lang, -1, `cb-open-${pos}`, 'hybrid-fence'),
+        )
+        decorations.push(
+          makeMarker(pos + node.nodeSize - 1, '```', 1, `cb-close-${pos}`, 'hybrid-fence'),
+        )
         return false
       }
       case 'listItem': {
