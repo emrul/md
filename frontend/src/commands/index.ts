@@ -143,4 +143,12 @@ export function registerCommands(ws: Workspace): void {
     label: 'Redo',
     handler: () => editor.chain().focus().redo().run(),
   })
+
+  // View
+  commands.register({
+    id: 'view.toggleSource',
+    label: 'Toggle Source View',
+    keybinding: 'Cmd+/',
+    handler: () => ws.viewController?.toggle(),
+  })
 }

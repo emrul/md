@@ -13,6 +13,12 @@
     "format:check": "prettier --check \"src/**/*.{ts,js,css,html}\" \"*.{json,html}\""
   },
   "dependencies": {
+    "@codemirror/commands": "^6.10.3",
+    "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/language": "^6.12.3",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.43.0",
+    "@lezer/highlight": "^1.2.3",
     "@tiptap/core": "^2.11.5",
     "@tiptap/extension-bubble-menu": "^2.27.2",
     "@tiptap/extension-character-count": "^2.11.5",

@@ -36,6 +36,11 @@
   color: var(--btn-active-fg);
 }
 
+.tb.is-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
 .tb-strike {
   text-decoration: line-through;
 }

@@ -1,6 +1,5 @@
 import type { Workspace } from '../app/workspace'
 import { OpenFileDialog, ReadFile, SaveFileDialog, WriteFile } from '../app/ipc'
-import { getMarkdown, setMarkdown } from '../editor/serialize/markdown'
 import { confirmDialog } from '../ui/confirmDialog'
 
 async function confirmDiscard(ws: Workspace): Promise<boolean> {
@@ -15,7 +14,7 @@ async function confirmDiscard(ws: Workspace): Promise<boolean> {
 
 export async function newFile(ws: Workspace): Promise<void> {
   if (!(await confirmDiscard(ws))) return
-  setMarkdown(ws.editor, '')
+  ws.loadMarkdown('')
   ws.setFilePath(null)
   ws.setModified(false)
 }
@@ -26,7 +25,7 @@ export async function openFile(ws: Workspace): Promise<void> {
     const path = await OpenFileDialog()
     if (!path) return
     const text = await ReadFile(path)
-    setMarkdown(ws.editor, text)
+    ws.loadMarkdown(text)
     ws.setFilePath(path)
     ws.setModified(false)
   } catch (err) {
@@ -37,7 +36,7 @@ export async function openFile(ws: Workspace): Promise<void> {
 export async function saveFile(ws: Workspace): Promise<void> {
   if (!ws.filePath) return saveFileAs(ws)
   try {
-    await WriteFile(ws.filePath, getMarkdown(ws.editor))
+    await WriteFile(ws.filePath, ws.getCurrentMarkdown())
     ws.setModified(false)
   } catch (err) {
     alert('Could not save: ' + String(err))
@@ -49,7 +48,7 @@ export async function saveFileAs(ws: Workspace): Promise<void> {
     const path = await SaveFileDialog(ws.filePath || 'Untitled.md')
     if (!path) return
     ws.setFilePath(path)
-    await WriteFile(path, getMarkdown(ws.editor))
+    await WriteFile(path, ws.getCurrentMarkdown())
     ws.setModified(false)
   } catch (err) {
     alert('Could not save: ' + String(err))
