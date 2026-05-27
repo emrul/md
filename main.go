@@ -11,13 +11,18 @@ import (
 var assets embed.FS
 
 func main() {
-	svc := &FileService{}
+	prefs, err := NewPreferencesService()
+	if err != nil {
+		log.Fatalf("preferences: %v", err)
+	}
 
 	app := application.New(application.Options{
 		Name:        "MarkdownMD",
 		Description: "Markdown editor",
 		Services: []application.Service{
-			application.NewService(svc),
+			application.NewService(&FileService{}),
+			application.NewService(&WindowService{}),
+			application.NewService(prefs),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -27,20 +32,12 @@ func main() {
 		},
 	})
 
-	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:  "MarkdownMD",
-		Width:  1000,
-		Height: 700,
-		MinWidth:  600,
-		MinHeight: 400,
-		URL: "/",
-		Mac: application.MacWindow{
-			TitleBar: application.MacTitleBarDefault,
-		},
-	})
-	svc.window = window
+	app.Menu.Set(buildAppMenu(app))
+	registerTabContextMenu(app)
 
-	if err := app.Run(); err != nil {
+	spawnWindow("/")
+
+	if err = app.Run(); err != nil {
 		log.Fatal(err)
 	}
 }

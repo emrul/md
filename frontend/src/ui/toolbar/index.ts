@@ -1,5 +1,5 @@
 import type { Editor } from '@tiptap/core'
-import type { Workspace } from '../../app/workspace'
+import type { TabManager } from '../../app/tabManager'
 import { commands } from '../../commands/registry'
 import './toolbar.css'
 
@@ -75,33 +75,34 @@ const bindings: Record<string, ToolbarBinding> = {
   'tb-source': { command: 'view.toggleSource' },
 }
 
-export function mountToolbar(ws: Workspace): { refresh: () => void } {
-  const editor = ws.editor
-
+export function mountToolbar(tm: TabManager): { refresh: () => void } {
   for (const [id, binding] of Object.entries(bindings)) {
     const el = document.getElementById(id)
     if (!el) continue
     el.addEventListener('click', () => {
-      if (binding.formatting && ws.viewController?.mode === 'source') return
+      const tab = tm.active()
+      if (!tab) return
+      if (binding.formatting && tab.viewController?.mode === 'source') return
       commands.execute(binding.command)
     })
   }
 
   const refresh = (): void => {
-    const isSource = ws.viewController?.mode === 'source'
+    const tab = tm.active()
+    const isSource = tab?.viewController?.mode === 'source'
     for (const [id, binding] of Object.entries(bindings)) {
       const el = document.getElementById(id)
       if (!el) continue
       if (binding.formatting) {
-        el.classList.toggle('is-disabled', isSource)
+        el.classList.toggle('is-disabled', !tab || isSource)
       }
       if (binding.isActive) {
-        const active = !isSource && binding.isActive(editor)
+        const active = !!tab && !isSource && binding.isActive(tab.editor)
         el.classList.toggle('is-active', active)
       }
     }
     const sourceBtn = document.getElementById('tb-source')
-    sourceBtn?.classList.toggle('is-active', isSource)
+    sourceBtn?.classList.toggle('is-active', !!isSource)
   }
 
   return { refresh }

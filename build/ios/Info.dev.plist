@@ -3,7 +3,7 @@
 <plist version="1.0">
 	<dict>
 		<key>CFBundleDisplayName</key>
-		<string>My Product (Dev)</string>
+		<string>MarkdownMD (Dev)</string>
 		<key>CFBundleExecutable</key>
 		<string>MarkdownMD</string>
 		<key>CFBundleGetInfoString</key>
@@ -11,7 +11,7 @@
 		<key>CFBundleIdentifier</key>
 		<string>com.mycompany.myproduct.dev</string>
 		<key>CFBundleName</key>
-		<string>My Product (Dev)</string>
+		<string>MarkdownMD (Dev)</string>
 		<key>CFBundlePackageType</key>
 		<string>APPL</string>
 		<key>CFBundleShortVersionString</key>

@@ -1,0 +1,183 @@
+/* Wrapper holds the scrolling strip + the scroll arrow buttons side-by-side. */
+body.no-tabs .tab-strip-wrapper,
+.tab-strip-wrapper.is-single {
+  display: none;
+}
+
+.tab-strip-wrapper {
+  display: flex;
+  align-items: stretch;
+  height: 32px;
+  background: var(--toolbar-bg);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.tab-strip {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+  user-select: none;
+  /* Hide native scrollbar visually; mouse-wheel / trackpad still scroll. */
+  scrollbar-width: none;
+}
+
+.tab-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  /* Fixed width: tabs do not shrink when many are open. Long names ellipsis;
+     short names leave some empty space (matches VS Code / Sublime behavior). */
+  flex: 0 0 180px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 12px;
+  font-size: 12px;
+  color: var(--muted);
+  border-right: 1px solid var(--border);
+  cursor: default;
+  position: relative;
+  white-space: nowrap;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.tab,
+.tab * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.tab:hover {
+  background: var(--btn-hover);
+  color: var(--text);
+}
+
+.tab.is-active {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.tab.is-active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--accent);
+}
+
+.tab-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-rename {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 1px 4px;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.tab-dirty {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text);
+  flex-shrink: 0;
+  opacity: 0;
+}
+
+.tab.is-modified .tab-dirty {
+  opacity: 0.65;
+}
+
+.tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  border-radius: 3px;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 80ms;
+  flex-shrink: 0;
+}
+
+.tab:hover .tab-close,
+.tab.is-active .tab-close,
+.tab.is-modified .tab-close {
+  opacity: 0.7;
+}
+
+.tab-close:hover {
+  background: var(--border);
+  opacity: 1 !important;
+}
+
+/* When .tab is-modified shows the dirty dot, hide the close button until hover */
+.tab.is-modified:not(:hover) .tab-close {
+  opacity: 0;
+}
+
+.tab.is-modified:not(:hover) .tab-dirty {
+  opacity: 0.65;
+}
+
+/* Scroll arrow controls — shown only when the strip overflows. */
+.tab-scroll-controls {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+}
+
+.tab-scroll-controls.is-hidden {
+  display: none;
+}
+
+.tab-scroll-btn {
+  width: 26px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  font-family: inherit;
+}
+
+.tab-scroll-btn:hover:not(:disabled) {
+  background: var(--btn-hover);
+  color: var(--text);
+}
+
+.tab-scroll-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.tab-scroll-btn + .tab-scroll-btn {
+  border-left: 1px solid var(--border);
+}

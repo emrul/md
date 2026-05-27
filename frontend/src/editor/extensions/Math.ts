@@ -3,24 +3,50 @@ import { InputRule } from '@tiptap/core'
 import type { Editor } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
-import katex from 'katex'
+import type katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { mathPlugin } from './math-md-it'
 import './math.css'
 
-function renderKatex(latex: string, displayMode: boolean, target: HTMLElement): void {
-  try {
-    katex.render(latex, target, {
-      displayMode,
-      throwOnError: false,
-      output: 'html',
-      strict: 'ignore',
-    })
-    target.classList.remove('is-error')
-  } catch (err) {
-    target.textContent = '⚠ ' + (err instanceof Error ? err.message : String(err))
-    target.classList.add('is-error')
+type Katex = typeof katex
+let katexPromise: Promise<Katex> | null = null
+
+function getKatex(): Promise<Katex> {
+  if (!katexPromise) {
+    katexPromise = import('katex').then((m) => m.default)
   }
+  return katexPromise
+}
+
+// Fire-and-forget render: the target shows a tiny placeholder while KaTeX
+// loads on first use (~one-time cost), then renders in-place. Subsequent
+// renders resolve in microseconds because the promise is cached.
+function renderKatex(latex: string, displayMode: boolean, target: HTMLElement): void {
+  if (!katexPromise) {
+    target.textContent = '…'
+    target.classList.remove('is-error')
+  }
+  const requestedLatex = latex
+  void getKatex().then((k) => {
+    // Bail if the target was already updated for a newer latex value.
+    if (target.dataset.lastLatex === requestedLatex && target.dataset.lastMode === String(displayMode)) {
+      return
+    }
+    target.dataset.lastLatex = requestedLatex
+    target.dataset.lastMode = String(displayMode)
+    try {
+      k.render(requestedLatex, target, {
+        displayMode,
+        throwOnError: false,
+        output: 'html',
+        strict: 'ignore',
+      })
+      target.classList.remove('is-error')
+    } catch (err) {
+      target.textContent = '⚠ ' + (err instanceof Error ? err.message : String(err))
+      target.classList.add('is-error')
+    }
+  })
 }
 
 interface MathStorage {

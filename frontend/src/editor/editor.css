@@ -1,9 +1,21 @@
-.editor-outer {
+.tab-host {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  position: relative;
+}
+
+.tab-mount {
   flex: 1;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   background: var(--bg);
+  min-height: 0;
+}
+
+.tab-mount.is-hidden {
+  display: none;
 }
 
 .editor-scroll {

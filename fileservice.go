@@ -1,25 +1,28 @@
 package main
 
 import (
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-type FileService struct {
-	window *application.WebviewWindow
-}
+type FileService struct{}
 
-func (f *FileService) OpenFileDialog() (string, error) {
+// OpenFileDialog returns a slice of selected paths. The user may pick one or
+// many files; an empty slice means they canceled.
+func (f *FileService) OpenFileDialog() ([]string, error) {
 	d := application.Get().Dialog.OpenFile().
 		SetTitle("Open Markdown File").
-		AddFilter("Markdown Files", "*.md;*.markdown").
+		AddFilter("Markdown Files", "*.md;*.markdown;*.mdx").
 		AddFilter("Text Files", "*.txt")
-	if f.window != nil {
-		d = d.AttachToWindow(f.window)
+	if w := application.Get().Window.Current(); w != nil {
+		d = d.AttachToWindow(w)
 	}
-	return d.PromptForSingleSelection()
+	return d.PromptForMultipleSelection()
 }
 
 func (f *FileService) SaveFileDialog(currentName string) (string, error) {
@@ -29,8 +32,8 @@ func (f *FileService) SaveFileDialog(currentName string) (string, error) {
 	d := application.Get().Dialog.SaveFile().
 		AddFilter("Markdown Files", "*.md").
 		SetFilename(filepath.Base(currentName))
-	if f.window != nil {
-		d = d.AttachToWindow(f.window)
+	if w := application.Get().Window.Current(); w != nil {
+		d = d.AttachToWindow(w)
 	}
 	return d.PromptForSingleSelection()
 }
@@ -47,8 +50,48 @@ func (f *FileService) WriteFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0o644)
 }
 
-func (f *FileService) SetWindowTitle(title string) {
-	if f.window != nil {
-		f.window.SetTitle(title)
+// RevealInFinder shows the file in the OS file browser, selected.
+// macOS: `open -R`; Windows: `explorer /select,`; Linux: opens parent dir
+// (most desktop environments lack a portable "reveal this file" command).
+func (f *FileService) RevealInFinder(path string) error {
+	if path == "" {
+		return errors.New("path required")
 	}
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", "-R", path)
+	case "windows":
+		cmd = exec.Command("explorer", "/select,"+path)
+	case "linux":
+		cmd = exec.Command("xdg-open", filepath.Dir(path))
+	default:
+		return errors.New("unsupported platform")
+	}
+	return cmd.Start()
+}
+
+// RenameFile renames the file at oldPath to newName in the SAME directory.
+// Returns the new full path. Refuses path separators in newName so a stray
+// "../" can't accidentally move the file out of its directory — use Save As
+// for that.
+func (f *FileService) RenameFile(oldPath, newName string) (string, error) {
+	if oldPath == "" || newName == "" {
+		return "", errors.New("oldPath and newName required")
+	}
+	if newName != filepath.Base(newName) {
+		return "", errors.New("name cannot contain path separators")
+	}
+	dir := filepath.Dir(oldPath)
+	newPath := filepath.Join(dir, newName)
+	if oldPath == newPath {
+		return newPath, nil
+	}
+	if _, err := os.Stat(newPath); err == nil {
+		return "", errors.New("a file with that name already exists")
+	}
+	if err := os.Rename(oldPath, newPath); err != nil {
+		return "", err
+	}
+	return newPath, nil
 }

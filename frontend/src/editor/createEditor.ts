@@ -32,6 +32,7 @@ export interface CreateEditorOptions {
 export function createEditor(opts: CreateEditorOptions): Editor {
   return new Editor({
     element: opts.element,
+    autofocus: 'start',
     extensions: [
       StarterKit.configure({ codeBlock: false }),
       EnhancedCodeBlock.configure({ lowlight, defaultLanguage: null }),

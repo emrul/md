@@ -7,32 +7,8 @@
   </head>
   <body>
     <div class="app">
-      <!-- Menu bar -->
-      <div class="menu-bar">
-        <div class="menu">
-          <span class="menu-label">File</span>
-          <div class="menu-drop">
-            <div class="menu-item" id="mi-new">New <kbd>⌘N</kbd></div>
-            <div class="menu-item" id="mi-open">Open… <kbd>⌘O</kbd></div>
-            <div class="menu-sep"></div>
-            <div class="menu-item" id="mi-save">Save <kbd>⌘S</kbd></div>
-            <div class="menu-item" id="mi-saveas">Save As… <kbd>⇧⌘S</kbd></div>
-          </div>
-        </div>
-        <div class="menu">
-          <span class="menu-label">Format</span>
-          <div class="menu-drop">
-            <div class="menu-item" id="mi-bold">Bold <kbd>⌘B</kbd></div>
-            <div class="menu-item" id="mi-italic">Italic <kbd>⌘I</kbd></div>
-            <div class="menu-item" id="mi-strike">Strikethrough</div>
-            <div class="menu-sep"></div>
-            <div class="menu-item" id="mi-code">Inline Code</div>
-            <div class="menu-item" id="mi-codeblock">Code Block</div>
-            <div class="menu-sep"></div>
-            <div class="menu-item" id="mi-link">Link… <kbd>⌘K</kbd></div>
-          </div>
-        </div>
-      </div>
+      <!-- Tab strip: TabManager renders one .tab per open tab -->
+      <div class="tab-strip" id="tab-strip"></div>
 
       <!-- Toolbar -->
       <div class="toolbar">
@@ -62,12 +38,8 @@
         <button class="tb" id="tb-source" title="Toggle source view (⌘/)">Source</button>
       </div>
 
-      <!-- Editor -->
-      <div class="editor-outer">
-        <div class="editor-scroll">
-          <div id="editor"></div>
-        </div>
-      </div>
+      <!-- Tab host: TabManager appends one .tab-mount per open tab -->
+      <div class="tab-host" id="tab-host"></div>
 
       <!-- Status bar -->
       <div class="status-bar">

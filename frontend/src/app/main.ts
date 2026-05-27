@@ -1,74 +1,84 @@
 import '../styles/tokens.css'
 import '../styles/base.css'
-import { createEditor } from '../editor/createEditor'
-import { Workspace } from './workspace'
-import { createViewController } from './viewMode'
+import { Events, Window } from '@wailsio/runtime'
+import { TabManager } from './tabManager'
+import type { Tab } from './tab'
 import { mountTitle } from './title'
-import { registerCommands, installKeymap } from '../commands'
-import { mountMenubar } from '../ui/menubar'
+import { registerCommands, installKeymap, commands } from '../commands'
+import { bindTabContextMenuEvents } from '../services/tabs'
 import { mountToolbar } from '../ui/toolbar'
 import { mountStatusbar } from '../ui/statusbar'
+import { mountTabStrip } from '../ui/tabStrip'
+import { ReadFile } from './ipc'
+import { loadPreferences } from './preferences'
 import { bindBubbleMenu, createBubbleMenu } from '../ui/bubbleMenu'
 import { mountCodeBlockLangPicker } from '../ui/codeBlockLangPicker'
 import { mountTableToolbar } from '../ui/tableToolbar'
 import { bindCanvasClick } from './canvasClick'
 
-const editorEl = document.querySelector<HTMLElement>('#editor')
-if (!editorEl) throw new Error('#editor mount point missing')
+const host = document.getElementById('tab-host')
+if (!host) throw new Error('#tab-host mount point missing')
 
-const editorScroll = editorEl.closest('.editor-scroll') as HTMLElement | null
-const editorOuter = editorScroll?.parentElement
-if (!editorScroll || !editorOuter) throw new Error('.editor-scroll mount point missing')
-
-const sourceParent = document.createElement('div')
-sourceParent.className = 'source-view'
-editorOuter.insertBefore(sourceParent, editorScroll.nextSibling)
-
-const hybridContainer = editorScroll
-
-const bubbleRefs = createBubbleMenu()
-document.body.appendChild(bubbleRefs.root)
+// Load preferences before anything else — feature flags affect mounting.
+const userPrefs = await loadPreferences()
+if (!userPrefs.useTabs) document.body.classList.add('no-tabs')
 
 let toolbar: { refresh: () => void } | null = null
 let statusbar: { refresh: () => void } | null = null
+let tabStrip: ReturnType<typeof mountTabStrip> | null = null
 
-function handleContentChange(): void {
-  ws.setModified(true)
-  statusbar?.refresh()
+function refreshAll(): void {
   toolbar?.refresh()
+  statusbar?.refresh()
+  tabStrip?.refresh()
 }
 
-const editor = createEditor({
-  element: editorEl,
-  bubbleMenuElement: bubbleRefs.root,
-  onUpdate: handleContentChange,
-  onSelectionUpdate: () => {
-    toolbar?.refresh()
-  },
-})
+function attachTabFeatures(tab: Tab): void {
+  const refs = createBubbleMenu(tab.dom.bubbleMount)
+  bindBubbleMenu(refs, tab)
+  tab.disposables.push(mountCodeBlockLangPicker(tab.editor))
+  tab.disposables.push(mountTableToolbar(tab.editor))
+  bindCanvasClick(tab.editor)
+}
 
-const ws = new Workspace(editor)
-ws.viewController = createViewController({
-  editor,
-  hybridContainer,
-  sourceParent,
+const tm = new TabManager({
+  host,
+  onAfterTabContentChange: refreshAll,
+  onAfterSelectionUpdate: () => toolbar?.refresh(),
+  onTabCreated: attachTabFeatures,
 })
-ws.viewController.onContentChange(handleContentChange)
-ws.viewController.onModeChange(() => {
-  toolbar?.refresh()
-  statusbar?.refresh()
-})
+tm.onChange(refreshAll)
 
-registerCommands(ws)
+registerCommands(tm)
 installKeymap()
-mountTitle(ws)
-mountMenubar()
-toolbar = mountToolbar(ws)
-statusbar = mountStatusbar(ws)
-bindBubbleMenu(bubbleRefs, ws)
-mountCodeBlockLangPicker(editor)
-mountTableToolbar(editor)
-bindCanvasClick(editor)
+mountTitle(tm)
+toolbar = mountToolbar(tm)
+statusbar = mountStatusbar(tm)
+tabStrip = mountTabStrip(tm)
 
-toolbar.refresh()
-statusbar.refresh()
+Events.On('command', (ev) => {
+  const id = typeof ev.data === 'string' ? ev.data : ''
+  if (id) commands.execute(id)
+})
+
+// Wire native context-menu events from menu.go. Filtering by window name keeps
+// other windows' right-clicks from acting in this one.
+const myWindowName = await Window.Name()
+bindTabContextMenuEvents(tm, myWindowName)
+
+// Boot one tab. If the window was launched with ?file=<path> (e.g. from
+// "Open in New Window"), load that file as the initial tab.
+const initialFile = new URLSearchParams(window.location.search).get('file')
+if (initialFile) {
+  try {
+    const content = await ReadFile(initialFile)
+    tm.newTab({ path: initialFile, content })
+  } catch (err) {
+    console.error('[boot] failed to load initial file', initialFile, err)
+    tm.newTab()
+  }
+} else {
+  tm.newTab()
+}
+
+refreshAll()

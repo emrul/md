@@ -1,7 +1,7 @@
 import type { Editor } from '@tiptap/core'
 import type { EditorState } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
-import type { Workspace } from '../../app/workspace'
+import type { Tab } from '../../app/tab'
 import { commands } from '../../commands/registry'
 import './bubble-menu.css'
 
@@ -62,7 +62,7 @@ const BUTTONS: ButtonSpec[] = [
   },
 ]
 
-let linkMode = false
+const linkModes = new WeakMap<Editor, boolean>()
 
 interface ShouldShowProps {
   editor: Editor
@@ -77,7 +77,7 @@ export function bubbleMenuShouldShow(props: ShouldShowProps): boolean {
   const isChildOfMenu = props.element.contains(document.activeElement)
   const hasEditorFocus = props.view.hasFocus() || isChildOfMenu
   if (!hasEditorFocus) return false
-  if (linkMode) return true
+  if (linkModes.get(props.editor)) return true
   if (props.from === props.to) return false
   const node = props.state.doc.nodeAt(props.from)
   if (node?.type.name === 'codeBlock') return false
@@ -95,9 +95,13 @@ export interface BubbleMenuRefs {
   linkCancel: HTMLButtonElement
 }
 
-export function createBubbleMenu(): BubbleMenuRefs {
-  const root = document.createElement('div')
-  root.className = 'bubble-menu'
+export function createBubbleMenu(root?: HTMLElement): BubbleMenuRefs {
+  if (root) {
+    root.className = 'bubble-menu'
+  } else {
+    root = document.createElement('div')
+    root.className = 'bubble-menu'
+  }
 
   const buttonsRow = document.createElement('div')
   buttonsRow.className = 'bm-row bm-row-buttons'
@@ -163,11 +167,11 @@ export function createBubbleMenu(): BubbleMenuRefs {
   return { root, buttonsRow, buttons, linkRow, linkInput, linkApply, linkRemove, linkCancel }
 }
 
-export function bindBubbleMenu(refs: BubbleMenuRefs, ws: Workspace): void {
-  const editor = ws.editor
+export function bindBubbleMenu(refs: BubbleMenuRefs, tab: Tab): void {
+  const editor = tab.editor
 
   const enterLinkMode = (): void => {
-    linkMode = true
+    linkModes.set(editor, true)
     const existingHref = (editor.getAttributes('link').href as string | undefined) ?? ''
     refs.linkInput.value = existingHref
     refs.buttonsRow.style.display = 'none'
@@ -179,8 +183,8 @@ export function bindBubbleMenu(refs: BubbleMenuRefs, ws: Workspace): void {
   }
 
   const exitLinkMode = (refocusEditor: boolean): void => {
-    if (!linkMode) return
-    linkMode = false
+    if (!linkModes.get(editor)) return
+    linkModes.set(editor, false)
     refs.linkRow.style.display = 'none'
     refs.buttonsRow.style.display = ''
     if (refocusEditor) editor.commands.focus()
@@ -229,7 +233,7 @@ export function bindBubbleMenu(refs: BubbleMenuRefs, ws: Workspace): void {
   })
 
   const refresh = (): void => {
-    if (linkMode) exitLinkMode(false)
+    if (linkModes.get(editor)) exitLinkMode(false)
     for (const b of BUTTONS) {
       const btn = refs.buttons[b.id]
       if (btn && b.isActive) btn.classList.toggle('is-active', b.isActive(editor))
@@ -239,7 +243,7 @@ export function bindBubbleMenu(refs: BubbleMenuRefs, ws: Workspace): void {
   editor.on('update', refresh)
   refresh()
 
-  ws.linkController = {
+  tab.linkController = {
     requestLink: () => {
       if (editor.state.selection.empty) return false
       enterLinkMode()
