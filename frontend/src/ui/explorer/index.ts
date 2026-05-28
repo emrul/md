@@ -7,7 +7,7 @@ import {
   homeDir,
   parentDir,
 } from '../../services/workspace'
-import { prefs, updatePreference } from '../../app/preferences'
+import { prefs, togglePinnedRoot, trackRecentRoot, updatePreference } from '../../app/preferences'
 import { registerExplorerCommands } from '../../commands/explorer'
 import { log } from '../../services/log'
 
@@ -30,6 +30,11 @@ const ICON_RESET = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" s
 // Text glyph rather than an SVG — `.*` reads as a clear hidden-files indicator
 // for the technical user audience (regex/glob convention).
 const ICON_DOTFOLDER = `<span class="explorer-header-dotfolders-glyph">.*</span>`
+const ICON_CHEVRON_DOWN = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>`
+// Pushpin used in the popover rows — actual pinning semantic (add/remove
+// from the persistent pinned list), distinct from the tree's "/" which
+// means "make this the root for this window".
+const ICON_PUSHPIN = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 2.5l3 3-2 2-1 4-2-2-3.5 3.5L4 12l3.5-3.5-2-2 4-1z"/></svg>`
 
 /**
  * basename — last path segment. Handles posix and Windows paths.
@@ -91,6 +96,12 @@ export function mountExplorer(state: ExplorerState, tm: TabManager): ExplorerMou
   const btnHome = makeIconBtn('is-home', ICON_HOME, 'Home')
   headerNav.append(btnUp, btnHome)
 
+  // Cluster: name + git icon + dropdown chevron. Groups them so the git
+  // icon sits immediately after the name and the dropdown trigger follows
+  // it, without the right-side buttons sliding in between.
+  const headerRoot = document.createElement('div')
+  headerRoot.className = 'explorer-header-root'
+
   const headerName = document.createElement('span')
   headerName.className = 'explorer-header-name'
   headerName.textContent = 'Files'
@@ -101,6 +112,17 @@ export function mountExplorer(state: ExplorerState, tm: TabManager): ExplorerMou
   headerGitIcon.title = 'Git repository'
   headerGitIcon.hidden = true
 
+  const headerChevron = document.createElement('button')
+  headerChevron.type = 'button'
+  headerChevron.className = 'explorer-header-chevron'
+  headerChevron.title = 'Recent and pinned roots'
+  headerChevron.setAttribute('aria-label', 'Recent and pinned roots')
+  headerChevron.setAttribute('aria-haspopup', 'menu')
+  headerChevron.setAttribute('aria-expanded', 'false')
+  headerChevron.innerHTML = ICON_CHEVRON_DOWN
+
+  headerRoot.append(headerName, headerGitIcon, headerChevron)
+
   const btnDotFolders = makeIconBtn('is-dotfolders', ICON_DOTFOLDER, 'Show hidden folders')
   btnDotFolders.classList.add('explorer-header-dotfolders')
   btnDotFolders.setAttribute('aria-pressed', String(prefs().showDotFolders))
@@ -109,7 +131,7 @@ export function mountExplorer(state: ExplorerState, tm: TabManager): ExplorerMou
   btnReset.classList.add('explorer-header-reset')
   btnReset.hidden = true
 
-  header.append(headerNav, headerName, headerGitIcon, btnDotFolders, btnReset)
+  header.append(headerNav, headerRoot, btnDotFolders, btnReset)
 
   const body = document.createElement('div')
   body.className = 'explorer-overlay-body'
@@ -185,12 +207,137 @@ export function mountExplorer(state: ExplorerState, tm: TabManager): ExplorerMou
         parentOfRoot = target
       }
       updateHeader()
+      // Promote to the front of the persistent recent-roots list. Pinned
+      // paths are skipped Go-side so we don't have to special-case here.
+      if (target) void trackRecentRoot(target)
     } catch (err) {
       log.error('explorer', `root resolution: ${(err as Error).message ?? String(err)}`)
     } finally {
       rootLoading = false
     }
   }
+
+  // --- Roots dropdown (pinned + recent) ---
+  // Lazily built on first open; rebuilt each time it opens so cross-window
+  // changes (the prefs file is shared) are reflected without live sync.
+  let dropdown: HTMLElement | null = null
+
+  function basenameOfPath(p: string): string {
+    if (!p) return ''
+    if (p === '/') return '/'
+    if (/^[A-Za-z]:[\\/]?$/.test(p)) return p
+    const parts = p.split(/[/\\]+/).filter(Boolean)
+    return parts[parts.length - 1] ?? p
+  }
+
+  function buildDropdown(): HTMLElement {
+    const p = prefs()
+    const pinned = [...p.pinnedRoots].sort((a, b) =>
+      basenameOfPath(a).toLowerCase().localeCompare(basenameOfPath(b).toLowerCase()),
+    )
+    const recent = p.recentRoots // already MRU-ordered Go-side
+
+    const root = document.createElement('div')
+    root.className = 'explorer-roots-popover'
+    root.setAttribute('role', 'menu')
+
+    function makeRow(path: string, isPinned: boolean): HTMLElement {
+      const row = document.createElement('div')
+      row.className = 'explorer-roots-row'
+      row.setAttribute('role', 'menuitem')
+      row.title = path
+
+      const name = document.createElement('span')
+      name.className = 'explorer-roots-name'
+      name.textContent = basenameOfPath(path)
+      row.appendChild(name)
+
+      const pinBtn = document.createElement('button')
+      pinBtn.type = 'button'
+      pinBtn.className = 'explorer-roots-pin'
+      pinBtn.classList.toggle('is-pinned', isPinned)
+      pinBtn.title = isPinned ? 'Unpin' : 'Pin'
+      pinBtn.setAttribute('aria-label', pinBtn.title)
+      pinBtn.setAttribute('aria-pressed', String(isPinned))
+      pinBtn.innerHTML = ICON_PUSHPIN
+      pinBtn.addEventListener('click', async (ev) => {
+        ev.stopPropagation()
+        await togglePinnedRoot(path)
+        // Rebuild the popover with the fresh prefs so the row moves
+        // between sections without flicker.
+        const next = buildDropdown()
+        root.replaceWith(next)
+        dropdown = next
+        positionDropdown()
+      })
+      row.appendChild(pinBtn)
+
+      row.addEventListener('click', () => {
+        closeDropdown()
+        state.setPinIntent(path)
+      })
+      return row
+    }
+
+    if (pinned.length > 0) {
+      const label = document.createElement('div')
+      label.className = 'explorer-roots-section-label'
+      label.textContent = 'Pinned'
+      root.appendChild(label)
+      for (const path of pinned) root.appendChild(makeRow(path, true))
+    }
+    if (recent.length > 0) {
+      const label = document.createElement('div')
+      label.className = 'explorer-roots-section-label'
+      label.textContent = 'Recent'
+      root.appendChild(label)
+      for (const path of recent) root.appendChild(makeRow(path, false))
+    }
+    if (pinned.length === 0 && recent.length === 0) {
+      const empty = document.createElement('div')
+      empty.className = 'explorer-roots-empty'
+      empty.textContent = 'No roots yet'
+      root.appendChild(empty)
+    }
+
+    return root
+  }
+
+  function positionDropdown(): void {
+    if (!dropdown) return
+    // Anchor under the folder name and pull left by the row's inner inset
+    // (4px row margin + 10px row padding = 14px) so each row's name text
+    // aligns with the folder name in the header. Top touches the header
+    // bottom (-1px overlap so the borders merge) — reads as a dropdown
+    // growing out of the header chrome.
+    const nameRect = headerName.getBoundingClientRect()
+    const headerRect = header.getBoundingClientRect()
+    dropdown.style.top = `${headerRect.bottom - 1}px`
+    dropdown.style.left = `${nameRect.left - 14}px`
+  }
+
+  function openDropdown(): void {
+    if (dropdown) return
+    dropdown = buildDropdown()
+    document.body.appendChild(dropdown)
+    positionDropdown()
+    headerChevron.setAttribute('aria-expanded', 'true')
+    headerChevron.classList.add('is-open')
+  }
+
+  function closeDropdown(): void {
+    if (!dropdown) return
+    dropdown.remove()
+    dropdown = null
+    headerChevron.setAttribute('aria-expanded', 'false')
+    headerChevron.classList.remove('is-open')
+  }
+
+  headerChevron.addEventListener('click', (ev) => {
+    ev.stopPropagation()
+    if (dropdown) closeDropdown()
+    else openDropdown()
+  })
 
   // --- Header button handlers ---
   // All pin-setters route through setPinIntent so the pin is only set when it
@@ -297,11 +444,20 @@ export function mountExplorer(state: ExplorerState, tm: TabManager): ExplorerMou
   // affected; native context menus and OS dialogs don't bubble through
   // document mousedown so they're naturally excluded.
   const onDocumentMouseDown = (e: MouseEvent): void => {
-    if (!state.overlayOpen) return
     const target = e.target as Node | null
+    // Close the popover if the click lands outside it AND outside its
+    // trigger. We bail before the overlay-close check so a click that
+    // dismisses just the popover doesn't also collapse the panel.
+    if (dropdown && target) {
+      if (!dropdown.contains(target) && !headerChevron.contains(target)) {
+        closeDropdown()
+      }
+    }
+    if (!state.overlayOpen) return
     if (!target) return
     if (overlay.contains(target)) return
     if (dock.contains(target)) return
+    if (dropdown && dropdown.contains(target)) return
     state.setOverlayOpen(false)
   }
   document.addEventListener('mousedown', onDocumentMouseDown)
@@ -320,6 +476,12 @@ export function mountExplorer(state: ExplorerState, tm: TabManager): ExplorerMou
   // keydowns, which is what saves us here.
   const onKeyDown = (e: KeyboardEvent): void => {
     if (e.key !== 'Escape') return
+    // Esc on the popover closes the popover first, not the whole panel.
+    if (dropdown) {
+      e.preventDefault()
+      closeDropdown()
+      return
+    }
     if (!state.overlayOpen) return
     const target = e.target as HTMLElement | null
     if (!target || !overlay.contains(target)) return
@@ -331,6 +493,7 @@ export function mountExplorer(state: ExplorerState, tm: TabManager): ExplorerMou
 
   return {
     dispose(): void {
+      closeDropdown()
       unsubscribe()
       tree.dispose()
       resizeHandle.removeEventListener('mousedown', onResizeDown)

@@ -10,33 +10,9 @@
       <!-- Tab strip: TabManager renders one .tab per open tab -->
       <div class="tab-strip" id="tab-strip"></div>
 
-      <!-- Toolbar -->
-      <div class="toolbar">
-        <button class="tb" id="tb-bold" title="Bold (⌘B)">Bold</button>
-        <button class="tb" id="tb-italic" title="Italic (⌘I)">Italic</button>
-        <button class="tb tb-strike" id="tb-strike" title="Strikethrough">Strike</button>
-        <div class="tb-sep"></div>
-        <button class="tb" id="tb-code" title="Inline code">Code</button>
-        <div class="tb-sep"></div>
-        <button class="tb" id="tb-h1" title="Heading 1">H1</button>
-        <button class="tb" id="tb-h2" title="Heading 2">H2</button>
-        <button class="tb" id="tb-h3" title="Heading 3">H3</button>
-        <div class="tb-sep"></div>
-        <button class="tb" id="tb-ul" title="Bullet list">Bullet list</button>
-        <button class="tb" id="tb-ol" title="Ordered list">Ordered list</button>
-        <div class="tb-sep"></div>
-        <button class="tb" id="tb-quote" title="Blockquote">Quote</button>
-        <button class="tb" id="tb-codeblock" title="Code block">Code block</button>
-        <button class="tb" id="tb-hr" title="Horizontal rule">Horizontal rule</button>
-        <div class="tb-sep"></div>
-        <button class="tb" id="tb-link" title="Insert link (⌘K)">Link</button>
-        <button class="tb" id="tb-image" title="Insert image">Image</button>
-        <div class="tb-sep"></div>
-        <button class="tb" id="tb-undo" title="Undo">Undo</button>
-        <button class="tb" id="tb-redo" title="Redo">Redo</button>
-        <div class="tb-sep"></div>
-        <button class="tb" id="tb-source" title="Toggle source view (⌘/)">Source</button>
-      </div>
+      <!-- Toolbar: buttons built by mountToolbar() in JS so icon + binding
+           + group definitions live in one place. -->
+      <div class="toolbar" role="toolbar" aria-label="Editor toolbar" id="toolbar"></div>
 
       <!-- Tab host: TabManager appends one .tab-mount per open tab -->
       <div class="tab-host" id="tab-host"></div>

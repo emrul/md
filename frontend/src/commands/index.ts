@@ -99,6 +99,11 @@ export function registerCommands(tm: TabManager, explorer: ExplorerState): void 
 
   // Blocks
   commands.register({
+    id: 'format.paragraph',
+    label: 'Paragraph',
+    handler: withEditor((e) => e.chain().focus().setParagraph().run()),
+  })
+  commands.register({
     id: 'format.heading1',
     label: 'Heading 1',
     keybinding: 'Cmd+Alt+1',

@@ -141,12 +141,26 @@
   display: block;
 }
 
-.explorer-header-name {
+/* Root cluster: name + git icon + dropdown chevron, packed together so
+   the git icon sits immediately after the name and the chevron right
+   after that. The cluster takes the leftover horizontal space; right-
+   side header buttons sit at the far right. */
+.explorer-header-root {
   flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+  overflow: hidden;
+}
+
+.explorer-header-name {
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin-left: 4px;
 }
 
 .explorer-header-git {
@@ -164,6 +178,126 @@
   width: 14px;
   height: 14px;
   display: block;
+}
+
+.explorer-header-chevron {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: var(--muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 100ms, color 100ms, transform 120ms;
+}
+.explorer-header-chevron:hover,
+.explorer-header-chevron.is-open {
+  background: var(--btn-hover);
+  color: var(--text);
+}
+.explorer-header-chevron.is-open {
+  transform: rotate(180deg);
+}
+.explorer-header-chevron svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+
+/* Roots popover — floats below the chevron. Re-anchored on each open
+   to handle resize and scroll. Position: fixed so it overlays the
+   editor cleanly. */
+.explorer-roots-popover {
+  position: fixed;
+  z-index: 60;
+  min-width: 220px;
+  max-width: 360px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 20px rgba(17, 24, 39, 0.12);
+  padding: 4px 0;
+  font-size: 13px;
+  color: var(--text);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.explorer-roots-section-label {
+  padding: 6px 10px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.explorer-roots-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 10px;
+  cursor: pointer;
+  border-radius: 3px;
+  margin: 0 4px;
+}
+.explorer-roots-row:hover {
+  background: var(--btn-hover);
+}
+
+.explorer-roots-name {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explorer-roots-pin {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: var(--muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: background-color 100ms, color 100ms, opacity 100ms;
+}
+.explorer-roots-row:hover .explorer-roots-pin {
+  opacity: 1;
+}
+.explorer-roots-pin:hover {
+  background: var(--border);
+  color: var(--text);
+}
+.explorer-roots-pin.is-pinned {
+  background: var(--btn-hover);
+  color: var(--text);
+  opacity: 1;
+}
+.explorer-roots-pin svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.explorer-roots-empty {
+  padding: 14px 20px;
+  color: var(--muted);
+  font-style: italic;
 }
 
 .explorer-header-reset {
@@ -388,15 +522,18 @@
   display: block;
 }
 
-/* Pin icon: hover-revealed by default, always visible when this folder is
-   the pinned root (the "active" state). Clicking toggles the pin. */
+/* "/" glyph: hover-revealed by default, always visible when this folder
+   is the active root. Clicking sets/clears the root. The row's own hover
+   already paints var(--btn-hover) as the row background, so the pin's
+   hover state uses a stronger background (the border token) to read as
+   a distinct clickable button against the row. */
 .tree-pin {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   background: transparent;
   border: none;
-  border-radius: 3px;
+  border-radius: 4px;
   color: var(--muted);
   cursor: pointer;
   visibility: hidden;
@@ -404,28 +541,23 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: background-color 100ms;
+  transition: background-color 100ms, color 100ms;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
 }
 .tree-row:hover .tree-pin,
 .tree-pin.is-active {
   visibility: visible;
 }
 .tree-pin:hover {
-  background: var(--btn-hover);
+  background: var(--border);
   color: var(--text);
 }
 .tree-pin.is-active {
+  background: var(--border);
   color: var(--text);
-}
-.tree-pin svg {
-  width: 12px;
-  height: 12px;
-  display: block;
-  transform: rotate(45deg);
-}
-.tree-pin.is-active svg {
-  /* "Pressed in" state — pin straight, slightly stronger weight feel. */
-  transform: rotate(0deg);
 }
 
 .explorer-overlay-resize {

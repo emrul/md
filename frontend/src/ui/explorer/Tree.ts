@@ -19,7 +19,9 @@ const ICON_CHEVRON = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor"
 const ICON_FOLDER = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 5a1.5 1.5 0 0 1 1.5-1.5h2.5l1.5 1.5h5a1.5 1.5 0 0 1 1.5 1.5v5.5a1.5 1.5 0 0 1-1.5 1.5h-9a1.5 1.5 0 0 1-1.5-1.5z"/></svg>`
 const ICON_FILE = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2.5h5l3 3v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M9 2.5v3h3"/></svg>`
 const ICON_BRANCH = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3v10"/><path d="M11 9V7a2 2 0 0 0-2-2H7"/><circle cx="5" cy="3" r="1.4"/><circle cx="11" cy="13" r="1.4"/><circle cx="5" cy="13" r="1.4"/></svg>`
-const ICON_PIN = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 2.5l3 3-2 2-1 4-2-2-3.5 3.5L4 12l3.5-3.5-2-2 4-1z"/></svg>`
+// "Make this the root" glyph. Replaces the previous pushpin SVG; "/" reads
+// as "treat this as the root of the explorer" for the technical audience.
+const PIN_GLYPH = '/'
 
 interface VisibleRow {
   entry: DirEntry
@@ -262,27 +264,28 @@ export function mountTree(container: HTMLElement, state: ExplorerState, tm: TabM
       el.appendChild(branch)
     }
 
-    // Pin icon on folder rows. CSS makes it hover-revealed by default and
-    // always-visible on the pinned-root row. Click toggles the pin and
-    // stopPropagation prevents the row's expand/select behavior from firing.
+    // "/" glyph on folder rows = "make this the root". CSS makes it
+    // hover-revealed by default and always-visible on the currently-rooted
+    // folder. Click sets the root; stopPropagation prevents the row's
+    // expand/select behavior from firing.
     if (entry.isDir) {
       const pin = document.createElement('button')
       pin.type = 'button'
       pin.className = 'tree-pin'
       const isPinned = state.pinnedRoot === entry.path
       pin.classList.toggle('is-active', isPinned)
-      pin.title = isPinned ? 'Unpin' : 'Pin as root'
+      pin.title = isPinned ? 'Clear root' : 'Make this the root'
       pin.setAttribute('aria-label', pin.title)
       pin.setAttribute('aria-pressed', String(isPinned))
-      pin.innerHTML = ICON_PIN
+      pin.textContent = PIN_GLYPH
       pin.addEventListener('click', (ev) => {
         ev.stopPropagation()
         if (isPinned) {
           state.setPinnedRoot(null)
         } else {
-          // Route through setPinIntent so pinning the current contextual root
-          // (the rare but possible case) just clears instead of setting a
-          // no-op pin.
+          // Route through setPinIntent so making the current contextual root
+          // the pin (the rare but possible case) just clears instead of
+          // setting a no-op pin.
           state.setPinIntent(entry.path)
         }
       })
