@@ -1,0 +1,163 @@
+name: Release
+
+# Builds and publishes platform artifacts whenever a v* tag is pushed.
+# workflow_dispatch is included so the build matrix can be exercised manually
+# without cutting a release (the release job is skipped unless a tag triggered).
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Single source of truth for the Wails CLI version — keep in step with the
+  # github.com/wailsapp/wails/v3 require in go.mod.
+  WAILS_VERSION: v3.0.0-alpha.74
+  NODE_VERSION: '20'
+
+jobs:
+  build-macos:
+    name: macOS (arm64)
+    runs-on: macos-14 # Apple Silicon
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install wails3 CLI
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Package
+        run: wails3 task darwin:package
+      - name: Zip .app bundle
+        run: |
+          cd bin
+          ditto -c -k --keepParent "MarkdownMD.app" "MarkdownMD-${GITHUB_REF_NAME}-macos-arm64.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64
+          path: bin/MarkdownMD-*-macos-arm64.zip
+          if-no-files-found: error
+
+  build-windows:
+    name: Windows (amd64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          choco install nsis -y --no-progress
+          echo "C:\Program Files (x86)\NSIS" >> $env:GITHUB_PATH
+      - name: Install wails3 CLI
+        shell: pwsh
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
+          echo "$(go env GOPATH)\bin" >> $env:GITHUB_PATH
+      - name: Package
+        run: wails3 task windows:package
+      - name: Collect artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist-out | Out-Null
+          Get-ChildItem build/windows/nsis/*installer*.exe | ForEach-Object {
+            Copy-Item $_.FullName "dist-out/MarkdownMD-${env:GITHUB_REF_NAME}-windows-amd64-installer.exe"
+          }
+          Copy-Item bin/MarkdownMD.exe "dist-out/MarkdownMD-${env:GITHUB_REF_NAME}-windows-amd64.exe"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-amd64
+          path: dist-out/*
+          if-no-files-found: error
+
+  build-linux:
+    name: Linux (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-22.04
+          - arch: arm64
+            runner: ubuntu-22.04-arm # GitHub-hosted Arm64 Linux runner
+    env:
+      # Lets appimagetool run without a mounted FUSE device (CI has none).
+      APPIMAGE_EXTRACT_AND_RUN: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config \
+            libgtk-3-dev libwebkit2gtk-4.1-dev \
+            libfuse2
+      - name: Install wails3 CLI
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Package
+        run: wails3 task linux:package
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist-out
+          shopt -s nullglob
+          for f in bin/*.AppImage bin/*.deb bin/*.rpm bin/*.pkg.tar.zst; do
+            cp "$f" dist-out/
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: dist-out/*
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    # Only publish when a tag triggered the run; manual dispatch just builds.
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
