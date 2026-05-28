@@ -1,13 +1,14 @@
 import type { TabManager } from '../app/tabManager'
+import type { ExplorerState } from '../app/explorerState'
 import { commands } from './registry'
-import { NewEmptyWindow } from '../app/ipc'
+import { NewEmptyWindow, OpenLogsWindow } from '../app/ipc'
 import * as files from '../services/files'
 import * as tabs from '../services/tabs'
 
 export { commands } from './registry'
 export { installKeymap } from './keymap'
 
-export function registerCommands(tm: TabManager): void {
+export function registerCommands(tm: TabManager, explorer: ExplorerState): void {
   // Helper: run a command against the active tab's editor, no-op if no tab.
   function withEditor(fn: (editor: import('@tiptap/core').Editor) => void): () => void {
     return () => {
@@ -29,6 +30,13 @@ export function registerCommands(tm: TabManager): void {
     label: 'Open…',
     keybinding: 'Cmd+O',
     handler: () => files.openFile(tm),
+  })
+  commands.register<{ path: string }>({
+    id: 'files.openPath',
+    label: 'Open File',
+    handler: (args) => {
+      if (args?.path) void files.openPath(tm, args.path)
+    },
   })
   commands.register({
     id: 'file.save',
@@ -177,5 +185,18 @@ export function registerCommands(tm: TabManager): void {
     handler: () => {
       tm.active()?.viewController?.toggle()
     },
+  })
+  commands.register({
+    id: 'view.openLogs',
+    label: 'Logs',
+    handler: () => {
+      void OpenLogsWindow()
+    },
+  })
+  commands.register({
+    id: 'view.toggleExplorer',
+    label: 'Toggle Files',
+    keybinding: 'Cmd+Shift+E',
+    handler: () => explorer.toggleOverlay(),
   })
 }

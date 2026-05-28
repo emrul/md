@@ -60,7 +60,10 @@ func buildAppMenu(app *application.App) *application.Menu {
 	addCmd(app, format, "Clear Formatting", "", "format.clearAll")
 
 	view := menu.AddSubmenu("View")
+	addCmd(app, view, "Toggle Files", "CmdOrCtrl+Shift+e", "view.toggleExplorer")
 	addCmd(app, view, "Toggle Source View", "CmdOrCtrl+/", "view.toggleSource")
+	view.AddSeparator()
+	addCmd(app, view, "Logs", "", "view.openLogs")
 
 	if runtime.GOOS == "darwin" {
 		menu.AddRole(application.WindowMenu)
@@ -114,6 +117,88 @@ func emitToCurrentWindow(app *application.App, name string) func(*application.Co
 		}
 		win.EmitEvent(name, ctx.ContextMenuData())
 	}
+}
+
+// emitCommandToCurrentWindow routes a context-menu item through the standard
+// `command` event with { id, args: { path } } payload, matching the
+// dispatcher in app/main.ts. This is the shape called out in
+// docs/architecture.md ("Event topology" + "The command registry is the
+// spine") — all explorer right-clicks go through it.
+//
+// Tab context menus still use emitToCurrentWindow above with bespoke event
+// names; migrating those to the command shape is a deferred cleanup.
+func emitCommandToCurrentWindow(app *application.App, cmdID string) func(*application.Context) {
+	return func(ctx *application.Context) {
+		payload := map[string]any{
+			"id":   cmdID,
+			"args": map[string]any{"path": ctx.ContextMenuData()},
+		}
+		win := app.Window.Current()
+		if win == nil {
+			app.Event.Emit("command", payload)
+			return
+		}
+		win.EmitEvent("command", payload)
+	}
+}
+
+// registerExplorerContextMenus attaches the four context menus the file
+// explorer uses: folder / folder-git / file / file-git. Git variants are
+// identical to the base for now — they're the seam for future git-aware
+// items ("Show in Git Log", "Show File History", etc.) without adding axes
+// later. All items route through the `command` event via
+// emitCommandToCurrentWindow so they flow through the central command
+// registry on the frontend.
+//
+// Picks at right-click time happen frontend-side via --custom-contextmenu
+// + --custom-contextmenu-data on each Tree row.
+func registerExplorerContextMenus(app *application.App) {
+	revealLabel := "Show in Finder"
+	if runtime.GOOS != "darwin" {
+		revealLabel = "Show in Explorer"
+	}
+
+	addCommonFolderItems := func(m *application.Menu) {
+		m.Add(revealLabel).OnClick(emitCommandToCurrentWindow(app, "explorer.revealInOS"))
+		m.AddSeparator()
+		m.Add("New File").OnClick(emitCommandToCurrentWindow(app, "explorer.newFile"))
+		m.Add("New Folder").OnClick(emitCommandToCurrentWindow(app, "explorer.newFolder"))
+		m.AddSeparator()
+		m.Add("Rename…").OnClick(emitCommandToCurrentWindow(app, "explorer.rename"))
+		m.AddSeparator()
+		m.Add("Refresh").OnClick(emitCommandToCurrentWindow(app, "explorer.refresh"))
+	}
+
+	addCommonFileItems := func(m *application.Menu) {
+		m.Add("Open in New Window").OnClick(emitCommandToCurrentWindow(app, "explorer.openInNewWindow"))
+		m.Add(revealLabel).OnClick(emitCommandToCurrentWindow(app, "explorer.revealInOS"))
+		m.Add("Copy Path").OnClick(emitCommandToCurrentWindow(app, "explorer.copyPath"))
+		m.AddSeparator()
+		m.Add("New File").OnClick(emitCommandToCurrentWindow(app, "explorer.newFile"))
+		m.Add("New Folder").OnClick(emitCommandToCurrentWindow(app, "explorer.newFolder"))
+		m.AddSeparator()
+		m.Add("Rename…").OnClick(emitCommandToCurrentWindow(app, "explorer.rename"))
+	}
+
+	folder := app.ContextMenu.New()
+	addCommonFolderItems(folder.Menu)
+	app.ContextMenu.Add("explorer-folder", folder)
+
+	folderGit := app.ContextMenu.New()
+	addCommonFolderItems(folderGit.Menu)
+	// Future: folderGit.Menu.AddSeparator()
+	// folderGit.Menu.Add("Show in Git Log").OnClick(...)
+	app.ContextMenu.Add("explorer-folder-git", folderGit)
+
+	file := app.ContextMenu.New()
+	addCommonFileItems(file.Menu)
+	app.ContextMenu.Add("explorer-file", file)
+
+	fileGit := app.ContextMenu.New()
+	addCommonFileItems(fileGit.Menu)
+	// Future: fileGit.Menu.AddSeparator()
+	// fileGit.Menu.Add("Show File History").OnClick(...)
+	app.ContextMenu.Add("explorer-file-git", fileGit)
 }
 
 func addCmd(app *application.App, m *application.Menu, label, accel, id string) {

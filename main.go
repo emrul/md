@@ -16,6 +16,9 @@ func main() {
 		log.Fatalf("preferences: %v", err)
 	}
 
+	logs := NewLogService()
+	workspace := NewWorkspaceService(logs)
+
 	app := application.New(application.Options{
 		Name:        "MarkdownMD",
 		Description: "Markdown editor",
@@ -23,6 +26,8 @@ func main() {
 			application.NewService(&FileService{}),
 			application.NewService(&WindowService{}),
 			application.NewService(prefs),
+			application.NewService(logs),
+			application.NewService(workspace),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -34,6 +39,7 @@ func main() {
 
 	app.Menu.Set(buildAppMenu(app))
 	registerTabContextMenu(app)
+	registerExplorerContextMenus(app)
 
 	spawnWindow("/")
 

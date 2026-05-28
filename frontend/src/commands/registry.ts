@@ -1,15 +1,15 @@
-export interface Command {
+export interface Command<A = unknown> {
   id: string
   label: string
   keybinding?: string
-  handler: () => void
+  handler: (args?: A) => void | Promise<void>
 }
 
 class Registry {
   private commands = new Map<string, Command>()
 
-  register(cmd: Command): void {
-    this.commands.set(cmd.id, cmd)
+  register<A = unknown>(cmd: Command<A>): void {
+    this.commands.set(cmd.id, cmd as Command)
   }
 
   get(id: string): Command | undefined {
@@ -20,13 +20,13 @@ class Registry {
     return Array.from(this.commands.values())
   }
 
-  execute(id: string): void {
+  execute(id: string, args?: unknown): void {
     const cmd = this.commands.get(id)
     if (!cmd) {
       console.warn(`[commands] unknown command: ${id}`)
       return
     }
-    void cmd.handler()
+    void cmd.handler(args)
   }
 }
 

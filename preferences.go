@@ -18,11 +18,17 @@ type Preferences struct {
 	// UseTabs controls whether File>Open adds a tab (true) or opens a new
 	// window with a single tab (false). Defaults to true.
 	UseTabs bool `toml:"use_tabs" json:"useTabs"`
+	// ShowDotFolders controls whether dot-prefixed directories (e.g.
+	// .config, .github) appear in the explorer. Default false — `~/` has
+	// dozens of them and they're rarely the markdown writer's focus.
+	// Dotfiles (regular files starting with `.`) are always hidden in M3.
+	ShowDotFolders bool `toml:"show_dotfolders" json:"showDotFolders"`
 }
 
 func defaultPreferences() Preferences {
 	return Preferences{
-		UseTabs: true,
+		UseTabs:        true,
+		ShowDotFolders: false,
 	}
 }
 

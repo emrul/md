@@ -68,6 +68,30 @@ export async function newFile(tm: TabManager): Promise<void> {
   await loadIntoActiveOrNewTab(tm, { path: null, content: '' })
 }
 
+/**
+ * Open a specific file path without going through the native picker. Used by
+ * the explorer when the user activates a file row (click or Enter). Mirrors
+ * the single-file branch of openFile: switch to an already-open tab if
+ * there is one; otherwise read the file and load it respecting useTabs.
+ */
+export async function openPath(tm: TabManager, path: string): Promise<void> {
+  if (!path) return
+  const existing = findTabByPath(tm, path)
+  if (existing) {
+    tm.setActive(existing.id)
+    return
+  }
+  let content: string
+  try {
+    content = await ReadFile(path)
+  } catch (err) {
+    console.error('[files] could not open', path, err)
+    return
+  }
+  await loadIntoActiveOrNewTab(tm, { path, content })
+  closeEmptyUntitledTabs(tm)
+}
+
 export async function openFile(tm: TabManager): Promise<void> {
   let paths: string[]
   try {
@@ -96,11 +120,23 @@ export async function openFile(tm: TabManager): Promise<void> {
   }
 
   // Multi-select: always open as tabs (the preference only affects single-file
-  // opens). Paths already open are switched to, not duplicated. The last item
-  // in the selection becomes active, matching VS Code / Sublime behavior.
-  // New tabs are created with defer:true so only the tab the user lands on
-  // pays the markdown-parse + render cost up-front; the others materialize on
-  // first switch.
+  // opens). Same code path as explorer's open-all-in-folder.
+  await openPaths(tm, paths)
+}
+
+/**
+ * Open many file paths as tabs. Already-open paths are switched to; new ones
+ * are created with defer:true so only the last tab (which becomes active)
+ * pays the markdown-parse + render cost up front. The rest pre-warm during
+ * idle time. Empty Untitled tabs are auto-closed after the first new tab
+ * lands so there's no leftover blank tab.
+ *
+ * Used by:
+ *   - File > Open with multi-select
+ *   - Explorer double-click on a folder (opens all .md children)
+ */
+export async function openPaths(tm: TabManager, paths: string[]): Promise<void> {
+  if (paths.length === 0) return
   let lastTabId: string | null = null
   const newlyOpened: string[] = []
   for (const path of paths) {
@@ -121,11 +157,8 @@ export async function openFile(tm: TabManager): Promise<void> {
   if (lastTabId) tm.setActive(lastTabId)
   closeEmptyUntitledTabs(tm)
 
-  // Pre-warm the remaining deferred tabs during idle time. materialize() is
-  // idempotent — if the user clicks one before its idle slot fires, setActive
-  // materializes it synchronously and the idle call becomes a cheap no-op.
   for (const id of newlyOpened) {
-    if (id === lastTabId) continue // already materialized by setActive above
+    if (id === lastTabId) continue
     scheduleIdle(() => tm.materialize(id))
   }
 }

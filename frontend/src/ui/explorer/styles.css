@@ -1,0 +1,457 @@
+/* Tiny floating dock anchored to the left edge, vertically centered.
+   Starts with one icon (folder) and grows downward as more surfaces are
+   added (search, outline, etc.). No permanent gutter is reserved — the
+   editor uses the full viewport width when the overlay is closed. */
+
+.explorer-dock {
+  position: fixed;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border);
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  padding: 4px;
+  z-index: 50;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Slides to the overlay's right edge while open. Inline `left` is set by
+     the JS so it tracks overlayWidth. */
+  transition: left 200ms cubic-bezier(0.32, 0.72, 0, 1);
+  /* Subtle lift off the editor surface — tuned for light theme. */
+  box-shadow: 1px 0 4px rgba(17, 24, 39, 0.06);
+}
+
+.explorer-dock-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 120ms, color 120ms;
+}
+.explorer-dock-btn:hover {
+  background: var(--btn-hover);
+  color: var(--text);
+}
+.explorer-dock-btn[aria-pressed='true'] {
+  background: var(--btn-hover);
+  color: var(--text);
+}
+.explorer-dock-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.explorer-dock-btn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+/* Overlay panel — slides in from the left edge of the viewport. When
+   closed, fully off-screen behind the dock. */
+.explorer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 280px;
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+  box-shadow: 4px 0 12px rgba(0, 0, 0, 0.06);
+  transform: translateX(-100%);
+  transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+  /* Suppress text selection across the whole panel — WKWebView needs the
+     -webkit- prefix explicitly. The inline rename input re-enables it for
+     itself further down. */
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+.explorer-overlay.is-open {
+  transform: translateX(0);
+}
+
+.explorer-overlay-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--toolbar-bg);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  flex-shrink: 0;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.explorer-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.explorer-header-btn {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color 100ms, color 100ms;
+}
+.explorer-header-btn:hover:not(:disabled) {
+  background: var(--btn-hover);
+  color: var(--text);
+}
+.explorer-header-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.explorer-header-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.explorer-header-btn svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.explorer-header-name {
+  flex: 1 1 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-left: 4px;
+}
+
+.explorer-header-git {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+.explorer-header-git[hidden] {
+  display: none;
+}
+.explorer-header-git svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.explorer-header-reset {
+  /* Stand out a touch from the nav cluster so the user sees the pin
+     state is on. Same neutral palette though — no color noise. */
+  background: var(--btn-hover);
+  color: var(--text);
+}
+.explorer-header-reset[hidden] {
+  display: none;
+}
+
+/* Dotfolder visibility toggle. Always present in the header (unlike Reset
+   which is conditional). Active state when dotfolders are shown. Uses a
+   `.*` text glyph rather than an SVG. */
+.explorer-header-dotfolders {
+  color: var(--muted);
+  opacity: 0.6;
+}
+.explorer-header-dotfolders:hover:not(:disabled) {
+  opacity: 1;
+}
+.explorer-header-dotfolders[aria-pressed='true'] {
+  background: var(--btn-hover);
+  color: var(--text);
+  opacity: 1;
+}
+.explorer-header-dotfolders-glyph {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.5px;
+  display: inline-block;
+  /* Tiny lift so `.` and `*` baseline-align nicely inside the button. */
+  transform: translateY(-1px);
+}
+
+.explorer-overlay-body {
+  flex: 1 1 0;
+  overflow-y: auto;
+  padding: 4px 0;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.tree-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 0;
+  /* All rows are clickable — files open, folders expand. Pointer cursor
+     overrides the cursor:default we set on the overlay shell. */
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  color: var(--text);
+  /* line-height tuned to keep rows compact like GitLab's tree */
+  line-height: 22px;
+  white-space: nowrap;
+  border-radius: 3px;
+  margin: 0 4px;
+}
+
+/* Indent guide — one thin vertical line per row, positioned at the parent
+   folder's chevron column. Across sibling rows of the same parent the
+   lines align, so it reads as a single connecting line. Depth 0 hides
+   the line. The --depth custom property is set by renderRow. */
+.tree-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* (depth - 1) * 16px + 15px:
+     parent's padding-left (=(depth-1)*16 + 8) + chevron half-width (~7px).
+     Tweaked by eye to land on the visual midline of the parent's chevron. */
+  left: calc((var(--depth, 0) - 1) * 16px + 15px);
+  width: 1px;
+  background: var(--border);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.tree-row[style*='--depth: 0']::before,
+.tree-row:not([style*='--depth'])::before {
+  display: none;
+}
+
+/* Fade-in for newly-visible rows. Re-rendering with the same class
+   re-triggers the animation; rows kept from the previous render don't
+   get the class so they stay put. */
+@keyframes tree-row-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.tree-row-entering {
+  animation: tree-row-fade-in 160ms ease-out;
+}
+
+.tree-empty {
+  padding: 14px 20px;
+  color: var(--muted);
+  font-size: 13px;
+  font-style: italic;
+}
+.tree-row .tree-name {
+  -webkit-user-select: none;
+  user-select: none;
+}
+.tree-row:hover {
+  background: var(--btn-hover);
+}
+
+/* Selection — persistent, present whether or not the tree has focus. */
+.tree-row.is-selected {
+  background: var(--btn-hover);
+}
+
+/* The tree wrapper itself is what receives keyboard focus; suppress its
+   default outline since the focus ring lives on the selected row's icon
+   (GitLab-style). */
+.tree-wrapper {
+  outline: none;
+}
+.tree-wrapper:focus-visible .tree-row.is-selected {
+  background: rgba(37, 99, 235, 0.10);
+}
+.tree-wrapper:focus-visible .tree-row.is-selected .tree-icon {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+.tree-chevron {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  flex-shrink: 0;
+  transition: transform 120ms ease;
+}
+.tree-chevron svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+.tree-chevron.is-expanded svg {
+  transform: rotate(90deg);
+}
+.tree-chevron.is-empty {
+  visibility: hidden;
+}
+
+.tree-icon {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.tree-row[data-is-dir='false'] .tree-icon {
+  color: var(--muted);
+  opacity: 0.7;
+}
+.tree-icon svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.tree-name {
+  flex: 1 1 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Inline edit input — used by rename and new file/folder. Sits flush with
+   the row's other content; same font and line-height so the row doesn't
+   visibly resize during editing. */
+.tree-row-edit-input {
+  flex: 1 1 0;
+  min-width: 0;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--focus-ring);
+  border-radius: 3px;
+  padding: 0 4px;
+  outline: none;
+  height: 20px;
+  line-height: 20px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.tree-row-edit:hover {
+  background: transparent;
+}
+
+.tree-git-decoration {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+.tree-git-decoration svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+
+/* Pin icon: hover-revealed by default, always visible when this folder is
+   the pinned root (the "active" state). Clicking toggles the pin. */
+.tree-pin {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: var(--muted);
+  cursor: pointer;
+  visibility: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background-color 100ms;
+}
+.tree-row:hover .tree-pin,
+.tree-pin.is-active {
+  visibility: visible;
+}
+.tree-pin:hover {
+  background: var(--btn-hover);
+  color: var(--text);
+}
+.tree-pin.is-active {
+  color: var(--text);
+}
+.tree-pin svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+  transform: rotate(45deg);
+}
+.tree-pin.is-active svg {
+  /* "Pressed in" state — pin straight, slightly stronger weight feel. */
+  transform: rotate(0deg);
+}
+
+.explorer-overlay-resize {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  z-index: 1;
+}
+.explorer-overlay-resize:hover,
+.explorer-overlay-resize.is-dragging {
+  background: var(--focus-ring);
+  opacity: 0.5;
+}
+
+body.explorer-resizing,
+body.explorer-resizing * {
+  user-select: none !important;
+  cursor: col-resize !important;
+}
+
+/* While the user drags the resize handle, kill the dock's `left` transition
+   so it tracks the cursor 1:1 instead of lagging 200ms behind. */
+body.explorer-resizing .explorer-dock {
+  transition: none;
+}

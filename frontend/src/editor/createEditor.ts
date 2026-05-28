@@ -17,6 +17,7 @@ import { MathInline, MathBlock } from './extensions/Math'
 import { HybridReveal } from './extensions/hybrid/HybridReveal'
 import { HeadingCycle } from './extensions/HeadingCycle'
 import { SlashMenu } from './extensions/slash/SlashMenu'
+import { TreeDropHandler } from './extensions/treeDropHandler'
 import './extensions/task-list.css'
 import './extensions/table.css'
 import { bubbleMenuShouldShow } from '../ui/bubbleMenu'
@@ -27,6 +28,13 @@ export interface CreateEditorOptions {
   bubbleMenuElement: HTMLElement
   onUpdate: () => void
   onSelectionUpdate: () => void
+  /**
+   * Returns the receiving tab's filePath (or null for Untitled). Used by
+   * the drag-from-tree handler to compute relative link paths. Caller
+   * threads this in via a closure that sees the Tab created after the
+   * editor is constructed.
+   */
+  getSourcePath?: () => string | null
 }
 
 export function createEditor(opts: CreateEditorOptions): Editor {
@@ -47,6 +55,9 @@ export function createEditor(opts: CreateEditorOptions): Editor {
       HybridReveal,
       HeadingCycle,
       SlashMenu,
+      TreeDropHandler.configure({
+        getSourcePath: opts.getSourcePath ?? (() => null),
+      }),
       Link.configure({ openOnClick: false }),
       Image,
       Placeholder.configure({ placeholder: "Type '/' for commands…" }),

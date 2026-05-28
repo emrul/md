@@ -97,6 +97,11 @@ export class TabManager {
     const id = nextTabId()
     const dom = buildTabDom(this.host, id)
 
+    // Forward reference: the editor is constructed before the Tab, but
+    // the drag-from-tree drop handler needs the tab's filePath at drop
+    // time (which is later, after the tab exists). We thread a closure
+    // that reads from the Tab once it's assigned.
+    let tabRef: Tab | null = null
     const editor = createEditor({
       element: dom.editorElement,
       bubbleMenuElement: dom.bubbleMount,
@@ -107,9 +112,11 @@ export class TabManager {
         this.onAfterTabContentChange()
       },
       onSelectionUpdate: () => this.onAfterSelectionUpdate(),
+      getSourcePath: () => tabRef?.filePath ?? null,
     })
 
     const tab = new Tab(id, editor, dom)
+    tabRef = tab
     tab.viewController = createViewController({
       editor,
       hybridContainer: dom.hybridContainer,

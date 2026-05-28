@@ -26,6 +26,14 @@ func (s *WindowService) NewEmptyWindow() error {
 	return nil
 }
 
+// OpenLogsWindow spawns a fresh window dedicated to the Logs UI. The frontend
+// boots into logs mode when ?logs=1 is present in the URL. We don't dedupe —
+// opening from the menu twice just shows two log windows, which is fine.
+func (s *WindowService) OpenLogsWindow() error {
+	spawnWindow("/?logs=1")
+	return nil
+}
+
 // cascadeOffset is the px each new window is offset from the currently
 // focused one so they don't perfectly overlap (macOS / Windows convention).
 const cascadeOffset = 30

@@ -32,6 +32,13 @@ export interface TabDisposables {
 export class Tab {
   filePath: string | null = null
   modified = false
+  /**
+   * Absolute path of the enclosing git repo root for this tab's file, or
+   * null when the file isn't inside a repo (or no file is open). Set
+   * asynchronously after the path resolves via FindGitRoot. Internal data
+   * for now — future features (file history, diff, etc.) gate on this.
+   */
+  gitRoot: string | null = null
   linkController: LinkController | null = null
   viewController: ViewController | null = null
   /** Per-tab UI handles (bubble menu, lang picker, table toolbar) registered after construction */
@@ -65,6 +72,11 @@ export class Tab {
   setFilePath(path: string | null): void {
     this.filePath = path
     this.notify()
+  }
+
+  /** Plain setter — doesn't notify. gitRoot is internal data with no UI yet. */
+  setGitRoot(value: string | null): void {
+    this.gitRoot = value
   }
 
   setModified(value: boolean): void {
