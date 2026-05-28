@@ -8,6 +8,7 @@ A Wails 3 + TipTap markdown editor. Goal: Typora / MarkText-class experience whi
 - [`docs/design.md`](docs/design.md) — milestone roadmap (M0–M4). M0, M1, M2 shipped; M3 in progress.
 - [`docs/file-explorer-plan.md`](docs/file-explorer-plan.md) — current milestone target (sidebar).
 - [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) — gotchas worth not re-litigating.
+- [`docs/pro-features.md`](docs/pro-features.md) — open-core split: how paid features plug in via the `app/` package + frontend feature registry, and live in the private `md-pro` overlay. Read before touching `app.go`, the `index.ts` barrel, or `features.ts`.
 
 ## Load-bearing rules
 
@@ -22,6 +23,6 @@ These are the ones that get violated when you forget them. The full set is in `d
 
 ## Project layout
 
-Single Go module at the repo root (`main.go`, `fileservice.go`, `windowservice.go`, `menu.go`, `preferences.go`, plus the new `workspaceservice.go` for M3). Frontend under `frontend/src/` split into `app/`, `ui/`, `services/`, `commands/`, `editor/`, `styles/`.
+Single Go module rooted at the repo. Root `main.go` is a thin entry shim that owns the `frontend/dist` embed and calls `app.Run(app.Options{…})`; the app assembly and services live in the importable `app/` package (`app.go`, `fileservice.go`, `windowservice.go`, `menu.go`, `preferences.go`, `sessionservice.go`, `workspaceservice.go`). The split exists so the private `md-pro` overlay can import the app — see [`docs/pro-features.md`](docs/pro-features.md). Frontend under `frontend/src/` split into `app/`, `ui/`, `services/`, `commands/`, `editor/`, `styles/`.
 
 Run with `wails3 task dev`. Build with `wails3 task build`. Build artifacts go to `bin/`.

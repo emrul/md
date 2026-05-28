@@ -35,10 +35,12 @@ export class Tab {
   /**
    * Absolute path of the enclosing git repo root for this tab's file, or
    * null when the file isn't inside a repo (or no file is open). Set
-   * asynchronously after the path resolves via FindGitRoot. Internal data
-   * for now — future features (file history, diff, etc.) gate on this.
+   * asynchronously after the path resolves via FindGitRoot.
    */
   gitRoot: string | null = null
+  /** Current branch name of gitRoot (or short commit hash if detached);
+   * null when not in a repo. Shown in the footer. */
+  gitBranch: string | null = null
   linkController: LinkController | null = null
   viewController: ViewController | null = null
   /** Per-tab UI handles (bubble menu, lang picker, table toolbar) registered after construction */
@@ -74,9 +76,11 @@ export class Tab {
     this.notify()
   }
 
-  /** Plain setter — doesn't notify. gitRoot is internal data with no UI yet. */
-  setGitRoot(value: string | null): void {
-    this.gitRoot = value
+  /** Set git root + branch together and notify (the footer reflects both). */
+  setGit(root: string | null, branch: string | null): void {
+    this.gitRoot = root
+    this.gitBranch = branch
+    this.notify()
   }
 
   setModified(value: boolean): void {

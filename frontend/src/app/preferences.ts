@@ -3,8 +3,8 @@ import {
   Set as SetPrefs,
   TrackRecentRoot as $TrackRecentRoot,
   TogglePinnedRoot as $TogglePinnedRoot,
-} from '../../bindings/markdownmd/preferencesservice.js'
-import { Preferences as PrefsModel } from '../../bindings/markdownmd/models.js'
+} from '../../bindings/markdownmd/app/preferencesservice.js'
+import { Preferences as PrefsModel } from '../../bindings/markdownmd/app/models.js'
 
 export interface Preferences {
   useTabs: boolean

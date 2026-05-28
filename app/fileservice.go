@@ -1,7 +1,8 @@
-package main
+package app
 
 import (
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +12,11 @@ import (
 )
 
 type FileService struct{}
+
+// previewHeadBytes bounds how much of a file PreviewFile reads. The explorer's
+// hover preview only shows a heading + first few lines, which live in the
+// head; reading more would waste IO/IPC on large files for no visible gain.
+const previewHeadBytes = 8192
 
 // OpenFileDialog returns a slice of selected paths. The user may pick one or
 // many files; an empty slice means they canceled.
@@ -48,6 +54,25 @@ func (f *FileService) ReadFile(path string) (string, error) {
 
 func (f *FileService) WriteFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0o644)
+}
+
+// PreviewFile returns up to previewHeadBytes from the head of the file, for
+// the explorer's hover preview. It never reads the whole file: one bounded
+// read into a fixed buffer keeps hovering a huge file as cheap as hovering a
+// small one. Truncation mid-line is fine — the caller only renders a heading
+// plus the first few lines.
+func (f *FileService) PreviewFile(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	buf := make([]byte, previewHeadBytes)
+	n, err := io.ReadFull(file, buf)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		return "", err
+	}
+	return string(buf[:n]), nil
 }
 
 // RevealInFinder shows the file in the OS file browser, selected.

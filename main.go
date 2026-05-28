@@ -4,46 +4,18 @@ import (
 	"embed"
 	"log"
 
-	"github.com/wailsapp/wails/v3/pkg/application"
+	"markdownmd/app"
 )
 
+// The embed lives here at the module root so its path reaches frontend/dist
+// without "..". The commercial overlay has its own main with its own embed of a
+// dist that bundles the pro frontend modules.
+//
 //go:embed all:frontend/dist
 var assets embed.FS
 
 func main() {
-	prefs, err := NewPreferencesService()
-	if err != nil {
-		log.Fatalf("preferences: %v", err)
-	}
-
-	logs := NewLogService()
-	workspace := NewWorkspaceService(logs)
-
-	app := application.New(application.Options{
-		Name:        "MarkdownMD",
-		Description: "Markdown editor",
-		Services: []application.Service{
-			application.NewService(&FileService{}),
-			application.NewService(&WindowService{}),
-			application.NewService(prefs),
-			application.NewService(logs),
-			application.NewService(workspace),
-		},
-		Assets: application.AssetOptions{
-			Handler: application.AssetFileServerFS(assets),
-		},
-		Mac: application.MacOptions{
-			ApplicationShouldTerminateAfterLastWindowClosed: true,
-		},
-	})
-
-	app.Menu.Set(buildAppMenu(app))
-	registerTabContextMenu(app)
-	registerExplorerContextMenus(app)
-
-	spawnWindow("/")
-
-	if err = app.Run(); err != nil {
+	if err := app.Run(app.Options{Assets: assets}); err != nil {
 		log.Fatal(err)
 	}
 }

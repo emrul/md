@@ -4,13 +4,14 @@ import {
   ContextualRoot as $ContextualRoot,
   FindGitRoot as $FindGitRoot,
   ParentDir as $ParentDir,
+  GitBranch as $GitBranch,
   StatMtimes as $StatMtimes,
   RelativeLinkPath as $RelativeLinkPath,
   CreateFileNear as $CreateFileNear,
   CreateFolderNear as $CreateFolderNear,
   ChildLinksForFolder as $ChildLinksForFolder,
-} from '../../bindings/markdownmd/workspaceservice.js'
-import { ChildLink, DirEntry, ReadDirResult } from '../../bindings/markdownmd/models.js'
+} from '../../bindings/markdownmd/app/workspaceservice.js'
+import { ChildLink, DirEntry, ReadDirResult } from '../../bindings/markdownmd/app/models.js'
 
 export type { ChildLink, DirEntry, ReadDirResult }
 
@@ -40,6 +41,10 @@ export async function contextualRoot(filePath: string): Promise<string> {
 
 export async function findGitRoot(path: string): Promise<string> {
   return await $FindGitRoot(path)
+}
+
+export async function gitBranch(repoRoot: string): Promise<string> {
+  return await $GitBranch(repoRoot)
 }
 
 export async function statMtimes(paths: string[]): Promise<number[]> {

@@ -1,10 +1,23 @@
-package main
+package app
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
+
+// ageEmpty backdates a folder's mtime well beyond EmptyFolderGraceWindow so
+// the empty-folder filter treats it as a long-standing (not just-created)
+// folder. Test dirs are made microseconds before the read, which would
+// otherwise land inside the grace window.
+func ageEmpty(t *testing.T, dir string) {
+	t.Helper()
+	old := time.Now().Add(-2 * EmptyFolderGraceWindow)
+	if err := os.Chtimes(dir, old, old); err != nil {
+		t.Fatalf("chtimes %s: %v", dir, err)
+	}
+}
 
 // build is a tiny helper that creates the given filesystem layout under root.
 // Each path ending with "/" creates a directory; otherwise an empty file.
@@ -56,6 +69,10 @@ func TestReadDir_FilterRules(t *testing.T) {
 		"only-dotfile-dir/",
 		"only-dotfile-dir/.config",
 	)
+	// Age the empty folders past the grace window — otherwise the freshly
+	// created dirs would be kept as just-made (see EmptyFolderGraceWindow).
+	ageEmpty(t, filepath.Join(root, "empty-dir"))
+	ageEmpty(t, filepath.Join(root, "only-dotfile-dir"))
 
 	res, err := newSvc(t).ReadDir(root, "", false)
 	if err != nil {
@@ -226,6 +243,9 @@ func TestReadDir_DotFolderEmptinessAgreesWithRender(t *testing.T) {
 		"holder/.config/",
 		"holder/.config/setting.md",
 	)
+	// Age holder so the showDotFolders=false case tests the empty-filter, not
+	// the just-created grace window.
+	ageEmpty(t, filepath.Join(root, "holder"))
 
 	// showDotFolders=true: holder is non-empty (its .config dot-folder is content).
 	res, err := newSvc(t).ReadDir(root, "", true)
@@ -243,6 +263,30 @@ func TestReadDir_DotFolderEmptinessAgreesWithRender(t *testing.T) {
 	}
 	if len(res.Entries) != 0 {
 		t.Errorf("showDotFolders=false: holder should be hidden (empty); got %v", names(res.Entries))
+	}
+}
+
+// A just-created empty folder stays visible (grace window) while an
+// empty folder older than the window is filtered out. This is what lets the
+// frontend create a folder and refetch without the folder vanishing — no
+// optimistic-injection workaround needed.
+func TestReadDir_EmptyFolderGraceWindow(t *testing.T) {
+	root := t.TempDir()
+	build(t, root,
+		"fresh-empty/",
+		"old-empty/",
+	)
+	// fresh-empty keeps its just-now mtime; old-empty is backdated past the window.
+	ageEmpty(t, filepath.Join(root, "old-empty"))
+
+	res, err := newSvc(t).ReadDir(root, "", false)
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	got := names(res.Entries)
+	want := []string{"fresh-empty"}
+	if !equal(got, want) {
+		t.Errorf("grace window:\n got  %v\n want %v", got, want)
 	}
 }
 

@@ -6,12 +6,12 @@ import {
   statMtimes,
   createFileNear,
   createFolderNear,
-  compareEntries,
   type DirEntry,
   type ReadDirResult,
 } from '../../services/workspace'
 import { RenameFile } from '../../app/ipc'
 import { openPath } from '../../services/files'
+import { createHoverPreview } from './hoverPreview'
 import type { TabManager } from '../../app/tabManager'
 import { log } from '../../services/log'
 
@@ -101,6 +101,9 @@ export function mountTree(container: HTMLElement, state: ExplorerState, tm: TabM
   // weren't there before a fade-in animation — the "buttery" expand feel
   // without needing nested DOM groups or DOM diffing.
   let previousVisiblePaths = new Set<string>()
+  // Path of the row the cursor is currently over, so the delegated mouseover
+  // handler can ignore the repeat events fired while moving within one row.
+  let lastHoverPath: string | null = null
 
   // The wrapper is what receives keyboard focus. The container we were given
   // is the scroll viewport; we render rows into a focusable child so arrow
@@ -377,6 +380,9 @@ export function mountTree(container: HTMLElement, state: ExplorerState, tm: TabM
   }
 
   function render(): void {
+    // Rows are about to be rebuilt; drop any preview anchored to an old row.
+    lastHoverPath = null
+    hoverPreview.cancel()
     visibleRows = collectVisibleRows()
     const frag = document.createDocumentFragment()
 
@@ -520,99 +526,37 @@ export function mountTree(container: HTMLElement, state: ExplorerState, tm: TabM
       if (edit.kind === 'rename') {
         const newPath = await RenameFile(edit.refPath, name)
         if (typeof newPath === 'string' && newPath !== edit.refPath) {
-          // Two-step path-rewrite that avoids calling refresh():
-          //   1. State: remap expandedPaths, selectedPath, pinnedRoot.
-          //   2. Listings cache: update the entry in its parent's listing
-          //      AND rekey the renamed folder's own listing.
-          // We skip refresh because re-fetching applies the empty-folder
-          // filter, which would silently drop a just-renamed empty folder
-          // — same trap that bit us on create.
+          // Remap state (expandedPaths, selectedPath, pinnedRoot) off the dead
+          // path, then refetch from disk. A just-renamed empty folder survives
+          // because the empty-folder filter keeps recently-touched folders
+          // (see EmptyFolderGraceWindow in workspaceservice.go).
           state.rewritePath(edit.refPath, newPath)
-          applyRenameToListings(edit.refPath, newPath)
+          await refresh()
+        } else {
+          render()
         }
-        render()
       } else if (edit.kind === 'new-file') {
         // Default to .md if the user didn't type a markdown extension. Lots of
         // people just type the basename. Without this, the resulting file is
         // extensionless and gets hidden by the non-md file filter on the next
-        // refresh.
+        // read.
         const finalName = ensureMarkdownExtension(name)
         const created = await createFileNear(edit.refPath, finalName)
-        injectNewEntry(edit.refPath, created, /*isDir*/ false)
+        await fetchAndStore(targetParentDir(edit.refPath))
         render()
         await openPath(tm, created)
       } else {
-        // New folder. We do NOT call refresh() — a freshly-created folder is
-        // empty and would be filtered out by the empty-folder rule on the
-        // next read. Inject into the parent's cached listing directly so the
-        // user sees their new folder immediately. The folder picks up its
-        // proper visibility from the normal rule once it has content.
-        const created = await createFolderNear(edit.refPath, name)
-        injectNewEntry(edit.refPath, created, /*isDir*/ true)
+        // New folder. Refetch the parent; the empty-folder filter keeps a
+        // freshly-created folder visible via its grace window
+        // (EmptyFolderGraceWindow in workspaceservice.go), so it stays put
+        // until the user adds content or the window lapses.
+        await createFolderNear(edit.refPath, name)
+        await fetchAndStore(targetParentDir(edit.refPath))
         render()
       }
     } catch (err) {
       log.warn('explorer', `${edit.kind}: ${(err as Error).message ?? String(err)}`)
       render()
-    }
-  }
-
-  /**
-   * After a successful rename, mutate the listings cache in place so the
-   * renamed entry stays visible without going through ReadDir again (which
-   * would re-apply the empty-folder filter and drop a just-renamed empty
-   * folder).
-   *
-   * Operations:
-   *   1. In the parent's listing, replace the old entry with one carrying
-   *      the new name + path, then re-sort to keep alphabetical order.
-   *   2. If the renamed entry had its own cached listing (e.g. it was
-   *      already expanded), rekey it from oldPath to newPath.
-   *   3. If any cached listing's key was a descendant of oldPath, rekey it
-   *      under newPath too (handles deeply-renamed nested expansions).
-   */
-  function applyRenameToListings(oldPath: string, newPath: string): void {
-    const sep = oldPath.includes('\\') && !oldPath.includes('/') ? '\\' : '/'
-    const parentDir = oldPath.slice(0, oldPath.lastIndexOf(sep)) || sep
-    const newName = baseNameOf(newPath)
-
-    const parent = listings.get(parentDir)
-    if (parent) {
-      const updatedEntries = parent.result.entries
-        .map((e) => (e.path === oldPath ? { ...e, name: newName, path: newPath } : e))
-        .sort(compareEntries)
-      const updatedSubMtimes = new Map(parent.subfolderMtimes)
-      if (updatedSubMtimes.has(oldPath)) {
-        const m = updatedSubMtimes.get(oldPath)!
-        updatedSubMtimes.delete(oldPath)
-        updatedSubMtimes.set(newPath, m)
-      }
-      listings.set(parentDir, {
-        ...parent,
-        subfolderMtimes: updatedSubMtimes,
-        result: { ...parent.result, entries: updatedEntries },
-      })
-    }
-
-    // Rekey any cached listings whose key was the renamed path or a descendant.
-    const keys = Array.from(listings.keys())
-    for (const key of keys) {
-      if (key === oldPath) {
-        const own = listings.get(key)!
-        listings.delete(key)
-        listings.set(newPath, {
-          ...own,
-          result: { ...own.result, path: newPath },
-        })
-      } else if (key.startsWith(oldPath + sep)) {
-        const rekeyed = newPath + key.slice(oldPath.length)
-        const sub = listings.get(key)!
-        listings.delete(key)
-        listings.set(rekeyed, {
-          ...sub,
-          result: { ...sub.result, path: rekeyed },
-        })
-      }
     }
   }
 
@@ -622,38 +566,6 @@ export function mountTree(container: HTMLElement, state: ExplorerState, tm: TabM
       return name
     }
     return name + '.md'
-  }
-
-  /**
-   * Add a freshly-created entry to its parent's cached listing in sort
-   * position. Used immediately after createFileNear / createFolderNear so
-   * the user sees the new thing without waiting for a refresh that might
-   * filter it back out (empty folder case).
-   */
-  function injectNewEntry(refPath: string, createdPath: string, isDir: boolean): void {
-    const parentDir = targetParentDir(refPath)
-    const cached = listings.get(parentDir)
-    if (!cached) return
-    const mtimeNow = Date.now()
-    const newEntry: DirEntry = {
-      name: baseNameOf(createdPath),
-      path: createdPath,
-      isDir,
-      // Folders carry mtime for the cache validity check; the OS just stamped
-      // it but we don't have the exact value — close enough for cache purposes
-      // until the next refresh re-stats.
-      mtime: isDir ? mtimeNow : undefined,
-      // gitRoot inherits from the parent's repo context.
-      gitRoot: cached.result.gitRoot || undefined,
-    } as DirEntry
-    const newEntries = [...cached.result.entries, newEntry].sort(compareEntries)
-    const newSubMtimes = new Map(cached.subfolderMtimes)
-    if (isDir) newSubMtimes.set(createdPath, mtimeNow)
-    listings.set(parentDir, {
-      parentMtime: cached.parentMtime,
-      subfolderMtimes: newSubMtimes,
-      result: { ...cached.result, entries: newEntries },
-    })
   }
 
   function cancelEdit(): void {
@@ -741,6 +653,38 @@ export function mountTree(container: HTMLElement, state: ExplorerState, tm: TabM
     void onKey(e)
   }
   wrapper.addEventListener('keydown', keyHandler)
+
+  // Hover preview: dwell ~700ms over a markdown file row to peek its heading
+  // + first lines. Delegated on the wrapper so it survives row re-renders.
+  const hoverPreview = createHoverPreview({
+    resolveAnchor: (path) => {
+      const row = wrapper.querySelector<HTMLElement>(`.tree-row[data-path="${cssEscape(path)}"]`)
+      return row ? row.getBoundingClientRect() : null
+    },
+  })
+
+  const onTreeMouseOver = (e: MouseEvent): void => {
+    const row = (e.target as HTMLElement | null)?.closest<HTMLElement>('.tree-row')
+    const path = row?.dataset.path ?? null
+    if (path === lastHoverPath) return // still on the same row
+    lastHoverPath = path
+    if (!row || !path || pendingEdit || row.dataset.isDir === 'true' || !isMarkdownName(baseNameOf(path))) {
+      hoverPreview.cancel()
+      return
+    }
+    hoverPreview.schedule(path)
+  }
+  const onTreeMouseLeave = (): void => {
+    lastHoverPath = null
+    hoverPreview.cancel()
+  }
+  const onTreeScroll = (): void => {
+    lastHoverPath = null
+    hoverPreview.cancel()
+  }
+  wrapper.addEventListener('mouseover', onTreeMouseOver)
+  wrapper.addEventListener('mouseleave', onTreeMouseLeave)
+  container.addEventListener('scroll', onTreeScroll, { passive: true })
 
   async function setRoot(path: string): Promise<void> {
     // Idempotent on same root: preserves expansion + selection across
@@ -858,6 +802,10 @@ export function mountTree(container: HTMLElement, state: ExplorerState, tm: TabM
     dispose(): void {
       unsubscribe()
       wrapper.removeEventListener('keydown', keyHandler)
+      wrapper.removeEventListener('mouseover', onTreeMouseOver)
+      wrapper.removeEventListener('mouseleave', onTreeMouseLeave)
+      container.removeEventListener('scroll', onTreeScroll)
+      hoverPreview.dispose()
       wrapper.remove()
     },
   }

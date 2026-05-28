@@ -1,0 +1,102 @@
+/* Floating table-of-contents (outline) button + panel. Anchored to the
+   top-left of the editor area — it lives inside .tab-host (position:relative)
+   so it floats over the content without scrolling with it. Shown only for
+   long, multi-heading docs; hidden while the file explorer overlay is open
+   (the explorer slides over this same corner). */
+
+.toc-button {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 30;
+  width: 32px;
+  height: 32px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.08);
+  transition: background-color 120ms, color 120ms;
+}
+.toc-button.is-visible {
+  display: flex;
+}
+.toc-button:hover {
+  background: var(--btn-hover);
+  color: var(--text);
+}
+.toc-button[aria-expanded='true'] {
+  background: var(--btn-hover);
+  color: var(--text);
+}
+.toc-button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.toc-button svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.toc-panel {
+  position: absolute;
+  top: 52px;
+  left: 12px;
+  z-index: 31;
+  width: 260px;
+  max-height: calc(100% - 72px);
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  padding: 6px;
+  display: none;
+}
+.toc-panel.is-open {
+  display: block;
+}
+
+.toc-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding: 4px 8px 6px;
+}
+
+.toc-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 4px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background-color 100ms, color 100ms;
+}
+.toc-item:hover {
+  background: var(--btn-hover);
+}
+.toc-item.is-active {
+  color: var(--link);
+  font-weight: 600;
+}
+.toc-item:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}

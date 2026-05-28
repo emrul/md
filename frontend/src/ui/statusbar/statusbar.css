@@ -8,4 +8,34 @@
   background: var(--toolbar-bg);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+  min-width: 0;
+}
+
+/* Git chip: branch icon + name. Sits just left of the file path. */
+.st-git {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.st-git[hidden] {
+  display: none;
+}
+.st-git svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+.st-git-branch {
+  font-variant-numeric: tabular-nums;
+}
+
+/* File path — last item. Truncates with an ellipsis when long; the full
+   absolute path is in the title attribute on hover. */
+#st-file {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

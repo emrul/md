@@ -70,7 +70,9 @@
 .ProseMirror p {
   margin: 0.75rem 0;
 }
-.ProseMirror p:first-child {
+/* Whatever the document opens with (heading, paragraph, list…) sits flush
+   against the editor's top padding — no stacked block margin above it. */
+.ProseMirror > :first-child {
   margin-top: 0;
 }
 

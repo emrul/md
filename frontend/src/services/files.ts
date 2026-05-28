@@ -1,6 +1,6 @@
 import type { Tab } from '../app/tab'
 import type { TabManager } from '../app/tabManager'
-import { OpenFileDialog, ReadFile, SaveFileDialog, WriteFile } from '../app/ipc'
+import { OpenFileDialog, PreviewFile, ReadFile, SaveFileDialog, WriteFile } from '../app/ipc'
 import { prefs } from '../app/preferences'
 import { confirmDiscard } from './tabs'
 
@@ -66,6 +66,19 @@ function applyToTab(tab: Tab, opts: { path: string | null; content: string }): v
 
 export async function newFile(tm: TabManager): Promise<void> {
   await loadIntoActiveOrNewTab(tm, { path: null, content: '' })
+}
+
+/**
+ * Read the head of a file for the explorer's hover preview. Backed by the
+ * bounded PreviewFile (first ~8KB only), so this stays cheap regardless of
+ * file size. Returns "" on any error — the caller treats that as "no preview".
+ */
+export async function previewFileHead(path: string): Promise<string> {
+  try {
+    return await PreviewFile(path)
+  } catch {
+    return ''
+  }
 }
 
 /**

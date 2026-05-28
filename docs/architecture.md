@@ -63,9 +63,11 @@ Truly app-global events (no specific window) are rare. Default to window-scoped.
 | Lifetime | Home |
 |---|---|
 | In-memory, per-window, ephemeral | `frontend/src/app/<thing>State.ts` (e.g., `tabManager.ts`, `explorerState.ts`) |
-| Persisted, per-window | (future) per-window state file at `<configHome>/MarkdownMD/windows/<windowId>.json` |
+| Persisted session (all windows) | `<configHome>/MarkdownMD/session.json` via `SessionService` |
 | Persisted, app-global | `preferences.toml` via `PreferencesService` |
 | Cached over a process lifetime | `frontend/src/services/<thing>.ts` (e.g., explorer's directory cache) |
+
+Session restore (`sessionservice.go`) persists the set of windows for restart: per window its file-backed tabs, active tab, explorer panel state, and geometry. Ownership is split — **Go owns geometry + the clean-shutdown flag; the frontend pushes tab/explorer content** via `SaveWindowContent`. This split exists because the Wails geometry getters dispatch to the main thread internally, so they can only be read off it (the debounce goroutine), never from the `OnShutdown` hook. Crash detection: the on-disk `cleanShutdown` flag is `false` while running and `true` only after a graceful `OnShutdown`; a `false` flag with restorable windows on next launch triggers a restore prompt. Unsaved (Untitled) tabs are not persisted, and a window with no surviving file tabs is not restored.
 
 Don't put per-window state in `preferences.toml`. Don't put app-global state in `app/<thing>State.ts`. Don't park user data in a frontend cache and treat the cache as authoritative.
 

@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"errors"
@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 // FolderListingPiggybackThreshold caps how many folder entries we'll scan
@@ -21,6 +22,16 @@ const FolderListingPiggybackThreshold = 200
 
 // piggybackWorkers bounds the goroutines used for the per-subfolder scan.
 const piggybackWorkers = 16
+
+// EmptyFolderGraceWindow keeps a still-empty folder visible for a while after
+// its last modification, so a user who just made a folder (right-click → New
+// Folder) can see it and drop a file in before the empty-folder filter would
+// otherwise hide it. A folder's mtime is stamped on creation and bumped by any
+// add/remove inside it, so this also covers "I just emptied this folder" — it
+// lingers briefly rather than vanishing under the cursor. Once the window
+// passes and the folder is still empty, the next read drops it. This replaces
+// the frontend's optimistic-injection workarounds for create/rename.
+const EmptyFolderGraceWindow = 15 * time.Minute
 
 // DirEntry is one row in a ReadDirResult.
 //
@@ -201,7 +212,8 @@ func (s *WorkspaceService) StatMtimes(paths []string) ([]int64, error) {
 
 // ReadDir lists the immediate children of path, applying the explorer's
 // render filter (dotfiles hidden, non-markdown files hidden, empty folders
-// hidden) and annotating each surviving subfolder with its GitRoot.
+// hidden unless modified within EmptyFolderGraceWindow) and annotating each
+// surviving subfolder with its GitRoot.
 //
 // showDotFolders controls whether directories starting with `.` are listed
 // AND whether they count as content for the empty-folder filter (so the
@@ -274,10 +286,12 @@ func (s *WorkspaceService) ReadDir(path string, requestID string, showDotFolders
 	}
 
 	// Pass 3 — assemble entries.
+	now := time.Now().UnixMilli()
 	out := make([]DirEntry, 0, len(folders)+len(files))
 	for i, f := range folders {
-		if !skipPiggyback && !folderResults[i].hasContent {
-			continue // empty folder
+		if !skipPiggyback && !folderResults[i].hasContent &&
+			!withinEmptyFolderGrace(folderResults[i].mtime, now) {
+			continue // empty folder, past its just-created grace window
 		}
 		sub := filepath.Join(path, f.Name())
 		entryGitRoot := res.GitRoot
@@ -360,6 +374,53 @@ func parentForCreate(refPath, name string) (string, error) {
 		return refPath, nil
 	}
 	return filepath.Dir(refPath), nil
+}
+
+// GitBranch returns the current branch name for the repo rooted at
+// repoRoot, or "" when it can't be determined (detached HEAD returns a
+// short commit hash). Reads .git/HEAD directly — no git binary needed.
+// Handles the worktree/submodule case where .git is a file pointing at the
+// real git dir via "gitdir: <path>".
+func (s *WorkspaceService) GitBranch(repoRoot string) (string, error) {
+	if repoRoot == "" {
+		return "", nil
+	}
+	gitPath := filepath.Join(repoRoot, ".git")
+	info, err := os.Stat(gitPath)
+	if err != nil {
+		return "", nil
+	}
+	headPath := filepath.Join(gitPath, "HEAD")
+	if !info.IsDir() {
+		// .git is a file: "gitdir: <path-to-real-git-dir>"
+		data, err := os.ReadFile(gitPath)
+		if err != nil {
+			return "", nil
+		}
+		line := strings.TrimSpace(string(data))
+		dir := strings.TrimSpace(strings.TrimPrefix(line, "gitdir:"))
+		if dir == "" {
+			return "", nil
+		}
+		if !filepath.IsAbs(dir) {
+			dir = filepath.Join(repoRoot, dir)
+		}
+		headPath = filepath.Join(dir, "HEAD")
+	}
+	data, err := os.ReadFile(headPath)
+	if err != nil {
+		return "", nil
+	}
+	content := strings.TrimSpace(string(data))
+	if ref, ok := strings.CutPrefix(content, "ref: "); ok {
+		// refs/heads/feature/foo → feature/foo
+		return strings.TrimPrefix(ref, "refs/heads/"), nil
+	}
+	// Detached HEAD: content is a commit hash. Show a short form.
+	if len(content) >= 7 {
+		return content[:7], nil
+	}
+	return "", nil
 }
 
 // ChildLink describes one direct markdown child of a folder along with the
@@ -451,6 +512,17 @@ type scanResult struct {
 	hasContent bool
 	isGitRoot  bool
 	mtime      int64
+}
+
+// withinEmptyFolderGrace reports whether mtimeMillis falls inside the
+// EmptyFolderGraceWindow ending at nowMillis. A zero/negative mtime (stat
+// failed) is treated as outside the window so we don't keep folders we know
+// nothing about.
+func withinEmptyFolderGrace(mtimeMillis, nowMillis int64) bool {
+	if mtimeMillis <= 0 {
+		return false
+	}
+	return nowMillis-mtimeMillis < EmptyFolderGraceWindow.Milliseconds()
 }
 
 func (s *WorkspaceService) statOnlyPass(parent string, folders []os.DirEntry, out []scanResult) {

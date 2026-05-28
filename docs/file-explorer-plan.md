@@ -70,7 +70,7 @@ A "filesystem root" button was considered and dropped — FS root is rarely usef
 - **Dot-folders** (folders starting with `.`, e.g. `.github`, `.config`): **visible**. They commonly contain content worth navigating to.
 - **Non-markdown files**: hidden by default initially. Future: show dimmed, click is no-op, right-click works (Reveal in Finder, Rename, Delete).
 - **Markdown files**: `.md`, `.mdx`, `.markdown`. Single-click opens (respects `useTabs` preference, same path as `files.openFile`).
-- **Empty folders**: hidden — a folder with no visible content (per the rules above) is not rendered. See [Empty-folder filtering](#empty-folder-filtering-and-git-detection-piggyback) for the cheap detection scheme.
+- **Empty folders**: hidden — a folder with no visible content (per the rules above) is not rendered, **unless** it was modified within `EmptyFolderGraceWindow` (15 min). The grace window keeps a just-created folder visible long enough to put a file in it, so the frontend can create-then-refetch without the folder vanishing (no optimistic-injection workaround needed). See [Empty-folder filtering](#empty-folder-filtering-and-git-detection-piggyback) for the cheap detection scheme.
 
 The render filter is a **single shared function** between (a) what we display in a listing and (b) what counts as "content" when deciding whether a folder is empty. Keeping them in lockstep prevents the bug where we'd hide a folder that should show, or show a folder that expands to nothing.
 
