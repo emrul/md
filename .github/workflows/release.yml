@@ -21,6 +21,9 @@ env:
   # github.com/wailsapp/wails/v3 require in go.mod.
   WAILS_VERSION: v3.0.0-alpha.74
   NODE_VERSION: '20'
+  # Guard against OOM during the Vite frontend build (large bundles) on the
+  # constrained hosted runners — per the Wails GitHub Actions guidance.
+  NODE_OPTIONS: '--max-old-space-size=4096'
 
 jobs:
   build-macos:
