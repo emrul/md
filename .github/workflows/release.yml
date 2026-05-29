@@ -19,7 +19,7 @@ concurrency:
 env:
   # Single source of truth for the Wails CLI version — keep in step with the
   # github.com/wailsapp/wails/v3 require in go.mod.
-  WAILS_VERSION: v3.0.0-alpha.74
+  WAILS_VERSION: v3.0.0-alpha.96
   NODE_VERSION: '20'
   # Guard against OOM during the Vite frontend build (large bundles) on the
   # constrained hosted runners — per the Wails GitHub Actions guidance.
