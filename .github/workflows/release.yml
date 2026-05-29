@@ -29,6 +29,16 @@ jobs:
   build-macos:
     name: macOS (arm64)
     runs-on: macos-14 # Apple Silicon
+    env:
+      # Developer ID signing + notarization secrets. When absent (forks, or
+      # before they're configured) the job falls back to the Taskfile's ad-hoc
+      # signing — the app still runs, users just clear Gatekeeper once.
+      MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+      MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+      MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -44,8 +54,52 @@ jobs:
         run: |
           go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Determine signing availability
+        id: signing
+        run: |
+          if [ -n "$MACOS_SIGN_IDENTITY" ] && [ -n "$MACOS_CERT_P12_BASE64" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Signing secrets absent — building with ad-hoc signature."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Set up signing keychain
+        if: steps.signing.outputs.enabled == 'true'
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+          printf '%s' "$MACOS_CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -k "$KEYCHAIN_PATH" -P "$MACOS_CERT_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          # Put our keychain first in the search list so codesign finds the identity.
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          # Store notary creds in the same keychain so submit can read them.
+          xcrun notarytool store-credentials "notarize" \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" --keychain "$KEYCHAIN_PATH"
+          rm -f "$CERT_PATH"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
       - name: Package
         run: wails3 task darwin:package
+      - name: Sign & notarize
+        if: steps.signing.outputs.enabled == 'true'
+        run: |
+          APP="bin/MarkdownMD.app"
+          # Re-sign over the ad-hoc signature with Developer ID + hardened runtime.
+          codesign --force --deep --timestamp --options runtime \
+            --sign "$MACOS_SIGN_IDENTITY" "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
+            --keychain-profile "notarize" --keychain "$KEYCHAIN_PATH" --wait
+          xcrun stapler staple "$APP"
+          xcrun stapler validate "$APP"
       - name: Zip .app bundle
         run: |
           cd bin
