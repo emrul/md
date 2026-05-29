@@ -136,6 +136,22 @@ function addBlockMarkers(doc: PMNode, from: number, to: number, decorations: Dec
         const number = (index ?? 0) + 1
         const marker = isOrdered ? `${number}. ` : '- '
         decorations.push(makeMarker(pos + 2, marker, -1, `li-${pos}`))
+        // Hide the rendered bullet/number on this revealed row so it doesn't
+        // appear alongside the markdown source (e.g. "• - item").
+        decorations.push(
+          Decoration.node(pos, pos + node.nodeSize, { class: 'hybrid-li-revealed' }),
+        )
+        return true
+      }
+      case 'taskItem': {
+        const checked = node.attrs.checked === true
+        const marker = checked ? '- [x] ' : '- [ ] '
+        decorations.push(makeMarker(pos + 2, marker, -1, `task-${pos}`))
+        // Hide the rendered checkbox on this revealed row; the source markup
+        // ("- [ ] " / "- [x] ") stands in for it.
+        decorations.push(
+          Decoration.node(pos, pos + node.nodeSize, { class: 'hybrid-task-revealed' }),
+        )
         return true
       }
       case 'blockquote':

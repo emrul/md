@@ -31,3 +31,12 @@
   font-weight: inherit;
   font-style: inherit;
 }
+
+/* When a list/task row reveals its markdown source, hide the rendered marker
+   so the row shows the source only — not "• - item" or checkbox + "- [ ] ". */
+.ProseMirror li.hybrid-li-revealed {
+  list-style: none;
+}
+.ProseMirror li.hybrid-task-revealed > label {
+  display: none;
+}
