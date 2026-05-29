@@ -203,6 +203,15 @@ func registerExplorerContextMenus(app *application.App) {
 
 func addCmd(app *application.App, m *application.Menu, label, accel, id string) {
 	item := m.Add(label).OnClick(func(ctx *application.Context) {
+		// Window-scoped: a menu/accelerator action must target only the active
+		// window, or with multiple windows open every window runs the command
+		// (e.g. File → Open opening in the wrong window). Mirrors
+		// emitCommandToCurrentWindow; falls back to global only if no current
+		// window. See docs/architecture.md "window-scoped emissions".
+		if win := app.Window.Current(); win != nil {
+			win.EmitEvent("command", id)
+			return
+		}
 		app.Event.Emit("command", id)
 	})
 	if accel != "" {
