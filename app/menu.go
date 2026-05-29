@@ -209,8 +209,17 @@ func registerExplorerContextMenus(app *application.App) {
 
 func checkForUpdates(app *application.App) func(*application.Context) {
 	return func(*application.Context) {
+		// Package-managed Linux installs can't swap themselves — point the user
+		// at their package manager instead of attempting (and failing) a swap.
+		if !selfUpdateSupported() {
+			app.Dialog.Info().
+				SetTitle("Updates").
+				SetMessage("MarkdownMD was installed via your package manager. Update it with your package manager (apt, dnf, pacman, …).").
+				Show()
+			return
+		}
 		// Run off the menu handler — CheckAndInstall blocks on network I/O and
-		// the download. It no-ops gracefully if the updater wasn't initialized.
+		// the download.
 		go func() {
 			if err := app.Updater.CheckAndInstall(context.Background()); err != nil {
 				app.Logger.Error("check for updates failed", "error", err)

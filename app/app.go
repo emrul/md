@@ -3,6 +3,8 @@ package app
 import (
 	"fmt"
 	"io/fs"
+	"os"
+	"runtime"
 	"strings"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -101,7 +103,22 @@ func Run(opts Options) error {
 // installer instead of the raw .exe) and miss the Linux AppImage. Only the
 // AppImage is self-updatable on Linux; .deb/.rpm/.pkg are package-manager
 // installs and are intentionally ignored here.
+// selfUpdateSupported reports whether in-place self-update applies to this
+// build. On Linux only an AppImage can swap itself (the AppImage runtime sets
+// $APPIMAGE); deb/rpm/pacman installs are owned by the package manager and must
+// update through it. macOS and Windows always self-update.
+func selfUpdateSupported() bool {
+	if runtime.GOOS == "linux" {
+		return os.Getenv("APPIMAGE") != ""
+	}
+	return true
+}
+
 func setupUpdater(app *application.App, version string, logs *LogService) {
+	if !selfUpdateSupported() {
+		logs.Info("updater", "self-update not applicable for this install (non-AppImage Linux); update via the package manager")
+		return
+	}
 	if version == "" {
 		version = "dev"
 	}
