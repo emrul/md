@@ -89,10 +89,11 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          echo "PRODUCT_VERSION=$VERSION" >> "$GITHUB_ENV"
           wails3 update build-assets -name MarkdownMD -binaryname MarkdownMD \
             -config build/config.yml -dir build -productversion "$VERSION"
       - name: Package
-        run: wails3 task darwin:package
+        run: wails3 task darwin:package PRODUCT_VERSION=${{ env.PRODUCT_VERSION }}
       - name: Sign & notarize
         if: steps.signing.outputs.enabled == 'true'
         run: |
@@ -145,9 +146,10 @@ jobs:
         shell: pwsh
         run: |
           $version = "${env:GITHUB_REF_NAME}" -replace '^v', ''
+          "PRODUCT_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
           wails3 update build-assets -name MarkdownMD -binaryname MarkdownMD -config build/config.yml -dir build -productversion $version
       - name: Package
-        run: wails3 task windows:package
+        run: wails3 task windows:package PRODUCT_VERSION=${{ env.PRODUCT_VERSION }}
       - name: Collect artifacts
         shell: pwsh
         run: |
@@ -202,10 +204,11 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          echo "PRODUCT_VERSION=$VERSION" >> "$GITHUB_ENV"
           wails3 update build-assets -name MarkdownMD -binaryname MarkdownMD \
             -config build/config.yml -dir build -productversion "$VERSION"
       - name: Package
-        run: wails3 task linux:package
+        run: wails3 task linux:package PRODUCT_VERSION=${{ env.PRODUCT_VERSION }}
       - name: Collect artifacts
         run: |
           mkdir -p dist-out
@@ -230,9 +233,20 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+      - name: Generate SHA256SUMS
+        run: |
+          # The updater fetches this sidecar and verifies the downloaded asset's
+          # digest against it. Filenames must be the release basenames.
+          : > SHA256SUMS
+          find artifacts -type f | sort | while read -r f; do
+            printf '%s  %s\n' "$(sha256sum "$f" | cut -d' ' -f1)" "$(basename "$f")" >> SHA256SUMS
+          done
+          echo "----- SHA256SUMS -----"; cat SHA256SUMS
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*
+          files: |
+            artifacts/**/*
+            SHA256SUMS
           generate_release_notes: true
           fail_on_unmatched_files: true
