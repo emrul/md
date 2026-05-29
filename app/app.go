@@ -3,10 +3,16 @@ package app
 import (
 	"fmt"
 	"io/fs"
+	"strings"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
+	"github.com/wailsapp/wails/v3/pkg/updater"
+	"github.com/wailsapp/wails/v3/pkg/updater/providers/github"
 )
+
+// updaterRepo is the GitHub "owner/repo" the self-updater checks for releases.
+const updaterRepo = "emrul/md"
 
 // Options configures a MarkdownMD application instance. The free build passes
 // only Assets; the commercial overlay injects ExtraServices and OnReady.
@@ -20,6 +26,11 @@ type Options struct {
 	// OnReady runs after the app and core menus are constructed, before Run.
 	// Overlay builds use it to append menu items and read entitlements.
 	OnReady func(app *application.App)
+	// Version is the running app version for the self-updater (compared against
+	// GitHub release tags). Set at release-build time via -ldflags; "dev" for
+	// local builds, where the updater still initializes but won't match a real
+	// release version.
+	Version string
 }
 
 // Run constructs and runs the application. It blocks until the app exits.
@@ -59,6 +70,8 @@ func Run(opts Options) error {
 		},
 	})
 
+	setupUpdater(app, opts.Version, logs)
+
 	app.Menu.Set(buildAppMenu(app))
 	registerTabContextMenu(app)
 	registerExplorerContextMenus(app)
@@ -80,4 +93,69 @@ func Run(opts Options) error {
 	})
 
 	return app.Run()
+}
+
+// setupUpdater wires the GitHub-backed self-updater. The custom asset matcher
+// picks the right *self-updatable* artifact per platform — the default matcher
+// (GOOS+GOARCH substring) would grab the wrong file on Windows (the NSIS
+// installer instead of the raw .exe) and miss the Linux AppImage. Only the
+// AppImage is self-updatable on Linux; .deb/.rpm/.pkg are package-manager
+// installs and are intentionally ignored here.
+func setupUpdater(app *application.App, version string, logs *LogService) {
+	if version == "" {
+		version = "dev"
+	}
+	gh, err := github.New(github.Config{
+		Repository:    updaterRepo,
+		ChecksumAsset: "SHA256SUMS",
+		AssetMatcher:  matchReleaseAsset,
+	})
+	if err != nil {
+		logs.Warn("updater", "github provider: "+err.Error())
+		return
+	}
+	if err := app.Updater.Init(updater.Config{
+		CurrentVersion: version,
+		Providers:      []updater.Provider{gh},
+	}); err != nil {
+		logs.Warn("updater", "init: "+err.Error())
+	}
+}
+
+// matchReleaseAsset selects the self-updatable asset for the running platform.
+// Returns the index into assets, or -1 when none fits.
+func matchReleaseAsset(req updater.CheckRequest, assets []github.ReleaseAsset) int {
+	wantArch := func(name string) bool {
+		switch strings.ToLower(req.Arch) {
+		case "amd64":
+			return strings.Contains(name, "amd64") || strings.Contains(name, "x86_64") || strings.Contains(name, "x64")
+		case "arm64":
+			return strings.Contains(name, "arm64") || strings.Contains(name, "aarch64")
+		default:
+			return strings.Contains(name, strings.ToLower(req.Arch))
+		}
+	}
+	for i, a := range assets {
+		name := strings.ToLower(a.Name)
+		if !wantArch(name) {
+			continue
+		}
+		switch req.Platform {
+		case "darwin":
+			if strings.HasSuffix(name, ".zip") && (strings.Contains(name, "darwin") || strings.Contains(name, "macos")) {
+				return i
+			}
+		case "windows":
+			// The raw executable, never the NSIS installer.
+			if strings.HasSuffix(name, ".exe") && !strings.Contains(name, "installer") {
+				return i
+			}
+		case "linux":
+			// AppImage is the only in-place-swappable Linux artifact.
+			if strings.HasSuffix(name, ".appimage") {
+				return i
+			}
+		}
+	}
+	return -1
 }

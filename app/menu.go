@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"runtime"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -25,6 +26,11 @@ func buildAppMenu(app *application.App) *application.Menu {
 	addCmd(app, file, "Save As…", "CmdOrCtrl+Shift+s", "file.saveAs")
 	file.AddSeparator()
 	addCmd(app, file, "Close Tab", "CmdOrCtrl+w", "tab.close")
+	file.AddSeparator()
+	// Go-side action (not a frontend command): drives the native updater +
+	// its window directly. CheckAndInstall opens the update window, checks
+	// GitHub, and downloads/stages a newer release if one is found.
+	file.Add("Check for Updates…").OnClick(checkForUpdates(app))
 
 	edit := menu.AddSubmenu("Edit")
 	addCmd(app, edit, "Undo", "CmdOrCtrl+z", "edit.undo")
@@ -199,6 +205,18 @@ func registerExplorerContextMenus(app *application.App) {
 	// Future: fileGit.Menu.AddSeparator()
 	// fileGit.Menu.Add("Show File History").OnClick(...)
 	app.ContextMenu.Add("explorer-file-git", fileGit)
+}
+
+func checkForUpdates(app *application.App) func(*application.Context) {
+	return func(*application.Context) {
+		// Run off the menu handler — CheckAndInstall blocks on network I/O and
+		// the download. It no-ops gracefully if the updater wasn't initialized.
+		go func() {
+			if err := app.Updater.CheckAndInstall(context.Background()); err != nil {
+				app.Logger.Error("check for updates failed", "error", err)
+			}
+		}()
+	}
 }
 
 func addCmd(app *application.App, m *application.Menu, label, accel, id string) {
