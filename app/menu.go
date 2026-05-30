@@ -165,6 +165,8 @@ func registerExplorerContextMenus(app *application.App) {
 	}
 
 	addCommonFolderItems := func(m *application.Menu) {
+		m.Add("Open All Markdowns").OnClick(emitCommandToCurrentWindow(app, "explorer.openAllMarkdown"))
+		m.AddSeparator()
 		m.Add(revealLabel).OnClick(emitCommandToCurrentWindow(app, "explorer.revealInOS"))
 		m.AddSeparator()
 		m.Add("New File").OnClick(emitCommandToCurrentWindow(app, "explorer.newFile"))

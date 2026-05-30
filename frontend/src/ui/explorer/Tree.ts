@@ -94,9 +94,6 @@ export function mountTree(container: HTMLElement, state: ExplorerState, tm: TabM
   }
   let pendingEdit: PendingEdit | null = null
   let focusEditAfterRender = false
-  // Tracks the deferred single-click toggle on folders so a fast second
-  // click (which fires dblclick) can preempt and switch to open-all-markdown.
-  let dirToggleTimer: ReturnType<typeof setTimeout> | null = null
   // Set of row paths visible at the previous render. Used to give rows that
   // weren't there before a fade-in animation — the "buttery" expand feel
   // without needing nested DOM groups or DOM diffing.
@@ -303,25 +300,10 @@ export function mountTree(container: HTMLElement, state: ExplorerState, tm: TabM
         state.setOverlayOpen(false)
         return
       }
-      // Folder: defer the toggle ~250ms so a follow-up second click can
-      // upgrade the gesture to a double-click → open-all-markdown.
-      if (dirToggleTimer) clearTimeout(dirToggleTimer)
-      const target = entry.path
-      dirToggleTimer = setTimeout(() => {
-        dirToggleTimer = null
-        void toggleFolder(target)
-      }, 250)
+      void toggleFolder(entry.path)
     })
 
     if (entry.isDir) {
-      el.addEventListener('dblclick', () => {
-        if (dirToggleTimer) {
-          clearTimeout(dirToggleTimer)
-          dirToggleTimer = null
-        }
-        commands.execute('explorer.openAllMarkdown', { path: entry.path })
-        state.setOverlayOpen(false)
-      })
       // Drag source for folders — drop into the editor inserts a bullet
       // list of links to its direct markdown children. Distinct MIME from
       // file drags so the drop handler can pick the right behavior without
