@@ -1,12 +1,16 @@
 name: Release
 
-# Builds and publishes platform artifacts whenever a v* tag is pushed.
-# workflow_dispatch is included so the build matrix can be exercised manually
-# without cutting a release (the release job is skipped unless a tag triggered).
+# OSS build validation only — this workflow no longer publishes on tag push.
+#
+# Official releases are published by the PRIVATE md-pro pipeline, which builds
+# the pro distribution and uploads it to THIS repo's Releases. That publish
+# creates the version tag here; with a `push: tags` trigger this OSS workflow
+# would re-fire on that tag (PAT-created tags DO trigger workflows) and overwrite
+# the pro assets with OSS builds — which is exactly what happened to v0.2.2.
+#
+# So: no tag trigger. workflow_dispatch remains to exercise the OSS build matrix
+# on demand; it never publishes (the release job is gated on a tag ref).
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch: {}
 
 permissions:
