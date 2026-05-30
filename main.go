@@ -8,8 +8,9 @@ import (
 )
 
 // The embed lives here at the module root so its path reaches frontend/dist
-// without "..". The commercial overlay has its own main with its own embed of a
-// dist that bundles the pro frontend modules.
+// without "..". With -tags pro, the same dist also contains the pro
+// frontend modules (vite's @pro alias resolves into the md-pro
+// sibling at build time).
 //
 //go:embed all:frontend/dist
 var assets embed.FS
@@ -20,7 +21,12 @@ var assets embed.FS
 var currentVersion = "dev"
 
 func main() {
-	if err := app.Run(app.Options{Assets: assets, Version: currentVersion}); err != nil {
+	opts := app.Options{Assets: assets, Version: currentVersion}
+	// applyPro is a no-op in the default OSS build; with -tags pro it pulls
+	// in the private md-pro module and wires its services + menus.
+	// See pro_off.go / pro_on.go and docs/pro-features.md.
+	applyPro(&opts)
+	if err := app.Run(opts); err != nil {
 		log.Fatal(err)
 	}
 }

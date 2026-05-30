@@ -36,6 +36,14 @@ type Preferences struct {
 	// (most-recent first), capped at RecentRootsCap. Pinned items don't
 	// appear here — pinning removes from recent and adds to pinned.
 	RecentRoots []string `toml:"recent_roots" json:"recentRoots"`
+	// FeatureSettings is a generic, add-only string→string bag for optional
+	// features (e.g. the pro overlay) to persist small settings without each
+	// one needing a dedicated, named field in this struct. Keys are namespaced
+	// by the feature (e.g. "changeHistory.show"). Core OSS code never reads or
+	// writes specific keys here — it just round-trips the map — so no pro
+	// feature names leak into the open-source build. See GetFeatureSetting /
+	// SetFeatureSetting.
+	FeatureSettings map[string]string `toml:"feature_settings" json:"featureSettings"`
 }
 
 // RecentRootsCap bounds RecentRoots. The 11th eviction drops the tail.
@@ -43,11 +51,12 @@ const RecentRootsCap = 10
 
 func defaultPreferences() Preferences {
 	return Preferences{
-		UseTabs:        true,
-		ShowDotFolders: false,
-		EditorMode:     "hybrid",
-		PinnedRoots:    []string{},
-		RecentRoots:    []string{},
+		UseTabs:         true,
+		ShowDotFolders:  false,
+		EditorMode:      "hybrid",
+		PinnedRoots:     []string{},
+		RecentRoots:     []string{},
+		FeatureSettings: map[string]string{},
 	}
 }
 
@@ -95,6 +104,40 @@ func (s *PreferencesService) Get() (Preferences, error) {
 // Set replaces the on-disk preferences with the given value.
 func (s *PreferencesService) Set(prefs Preferences) error {
 	return s.write(prefs)
+}
+
+// GetFeatureSetting returns the value stored under key in the generic
+// FeatureSettings bag, or "" if absent. Lets optional features read a single
+// setting without round-tripping the whole Preferences struct frontend-side.
+func (s *PreferencesService) GetFeatureSetting(key string) (string, error) {
+	prefs, err := s.Get()
+	if err != nil {
+		return "", err
+	}
+	return prefs.FeatureSettings[key], nil
+}
+
+// SetFeatureSetting writes a single key into the generic FeatureSettings bag
+// and persists, leaving every other preference untouched. Returns the updated
+// preferences so the caller can refresh its cache in one round-trip. Doing the
+// read-modify-write Go-side avoids a feature having to re-serialize the whole
+// struct (and risk clobbering fields it doesn't know about).
+func (s *PreferencesService) SetFeatureSetting(key, value string) (Preferences, error) {
+	prefs, err := s.Get()
+	if err != nil {
+		return prefs, err
+	}
+	if key == "" {
+		return prefs, nil
+	}
+	if prefs.FeatureSettings == nil {
+		prefs.FeatureSettings = map[string]string{}
+	}
+	prefs.FeatureSettings[key] = value
+	if err := s.write(prefs); err != nil {
+		return prefs, err
+	}
+	return prefs, nil
 }
 
 // TrackRecentRoot promotes path to the front of RecentRoots, capping at

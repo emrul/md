@@ -34,6 +34,67 @@ tasks:
     cmds:
       - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
 
+  setup:pro:
+    summary: Prepare a local pro build (requires sibling at ../md-pro).
+    desc: |
+      Generates the Go workspace that lets `go build -tags pro` resolve the
+      private md-pro module from a sibling working tree. Without
+      this file (or a CI-equivalent fetch), pro builds fail with a clear
+      "no required module provides..." error.
+
+      Re-run if you move the sibling repo or change its Go module path.
+    preconditions:
+      - sh: test -d ../md-pro/pro
+        msg: |
+          Sibling repo ../md-pro not found. Pro builds require the
+          private repo to be checked out at the same level as this one:
+            git clone <md-pro url> ../md-pro
+    cmds:
+      - |
+        cat > go.work <<'EOF'
+        go 1.25.0
+
+        use (
+        	.
+        	../md-pro
+        )
+        EOF
+
+  build:pro:
+    summary: Build with pro features. Requires `task setup:pro` first.
+    desc: |
+      Sets PRO=1 in the OS environment, then re-invokes `wails3 task build`
+      as a subprocess so the deeply-nested vite step (common:build:frontend)
+      inherits PRO from its parent process. Task's own env: doesn't
+      propagate through `task:` directives — but it DOES propagate into
+      spawned subprocesses, so wrapping the build in another wails3 call
+      gets PRO down to npm.
+    deps:
+      - task: setup:pro
+    cmds:
+      - wails3 task build EXTRA_TAGS=pro
+    env:
+      PRO: "1"
+
+  package:pro:
+    summary: Package a pro release for this platform.
+    deps:
+      - task: setup:pro
+    cmds:
+      - wails3 task package EXTRA_TAGS=pro
+    env:
+      PRO: "1"
+
+  dev:pro:
+    summary: Dev mode with pro features enabled.
+    deps:
+      - task: setup:pro
+    cmds:
+      - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+    env:
+      PRO: "1"
+      EXTRA_TAGS: pro
+
   setup:docker:
     summary: Builds Docker image for cross-compilation (~800MB download)
     cmds:

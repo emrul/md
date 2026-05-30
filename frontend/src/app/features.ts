@@ -1,6 +1,7 @@
 import type { TabManager } from './tabManager'
 import type { ExplorerState } from './explorerState'
 import type { Tab } from './tab'
+import type { GutterRail } from '../ui/gutterRail'
 
 /**
  * Context handed to every feature hook. This is a cross-repo API surface (the
@@ -10,6 +11,9 @@ import type { Tab } from './tab'
 export interface FeatureContext {
   tm: TabManager
   explorer: ExplorerState
+  /** The left editor gutter rail (ToC + pro items). Use `rail.register(...)` to
+   * add a gutter icon with its own visibility, stacked below the core items. */
+  rail: GutterRail
 }
 
 /**

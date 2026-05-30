@@ -2,6 +2,7 @@ import './toc.css'
 import type { TabManager } from '../../app/tabManager'
 import type { ExplorerState } from '../../app/explorerState'
 import type { Tab } from '../../app/tab'
+import type { GutterRail } from '../gutterRail'
 
 // Bulleted-list glyph, matching the line-icon style used elsewhere in the app.
 const LIST_ICON = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h7"/><path d="M6 8h7"/><path d="M6 12h7"/><circle cx="3" cy="4" r="0.9" fill="currentColor" stroke="none"/><circle cx="3" cy="8" r="0.9" fill="currentColor" stroke="none"/><circle cx="3" cy="12" r="0.9" fill="currentColor" stroke="none"/></svg>`
@@ -12,10 +13,9 @@ const MIN_HEADINGS = 3
 // A heading counts as the "current section" once its top is within this many
 // px of the scroll container top (accounts for the editor's top padding).
 const ACTIVATION_OFFSET = 80
-// Button footprint + gap from the content's left edge (keep in sync with the
-// .toc-button size in toc.css).
-const BUTTON_SIZE = 32
-const BUTTON_GAP = 10
+// Vertical gap from the rail button's top to its panel (button height + gap;
+// keep in sync with the .toc-button size in toc.css).
+const PANEL_OFFSET = 40
 
 interface HeadingEntry {
   el: HTMLElement
@@ -27,6 +27,7 @@ export function mountToc(
   tm: TabManager,
   explorer: ExplorerState,
   host: HTMLElement,
+  rail: GutterRail,
 ): { refresh: () => void } {
   const button = document.createElement('button')
   button.type = 'button'
@@ -41,7 +42,11 @@ export function mountToc(
   panel.className = 'toc-panel'
   panel.setAttribute('aria-label', 'Document outline')
 
-  host.append(button, panel)
+  host.append(panel)
+  // The rail owns the button's position (left + vertical slot) and visibility;
+  // we only mirror the panel under the button when the slot moves.
+  const railHandle = rail.register({ id: 'toc', order: 10, button })
+  railHandle.onLayout((top) => positionPanel(top))
 
   let panelOpen = false
   let entries: HeadingEntry[] = []
@@ -82,18 +87,14 @@ export function mountToc(
     return (clone.textContent ?? '').replace(/\s+/g, ' ').trim()
   }
 
-  // Park the button (and panel) in the left gutter, just outside the
-  // centered content column, rather than the viewport corner. The column is
-  // centered (max-width), so its left edge moves with the window — measure it
-  // live rather than hard-coding the layout constants.
-  function positionButton(): void {
-    const tab = tm.active()
-    const content = tab?.dom.editorElement.querySelector<HTMLElement>('.ProseMirror')
-    if (!content) return
-    const contentLeft = content.getBoundingClientRect().left - host.getBoundingClientRect().left
-    const left = Math.max(8, Math.round(contentLeft - BUTTON_GAP - BUTTON_SIZE))
-    button.style.left = `${left}px`
-    panel.style.left = `${left}px`
+  // The rail positions the button (left gutter + vertical slot). The panel just
+  // mirrors the button's left and sits one slot-height under it.
+  function railTop(): number {
+    return parseInt(button.style.top || '12', 10) || 12
+  }
+  function positionPanel(top: number = railTop()): void {
+    panel.style.left = button.style.left
+    panel.style.top = `${top + PANEL_OFFSET}px`
   }
 
   function rebindScroll(scrollEl: HTMLElement | null): void {
@@ -175,7 +176,7 @@ export function mountToc(
     panelOpen = true
     panel.classList.add('is-open')
     button.setAttribute('aria-expanded', 'true')
-    positionButton()
+    positionPanel()
     renderPanel()
     updateActive()
     applyActiveClass()
@@ -189,7 +190,7 @@ export function mountToc(
   }
 
   function hide(): void {
-    button.classList.remove('is-visible')
+    railHandle.setVisible(false)
     closePanel()
     entries = []
     activeIndex = -1
@@ -210,8 +211,8 @@ export function mountToc(
       hide()
       return
     }
-    button.classList.add('is-visible')
-    positionButton()
+    railHandle.setVisible(true)
+    positionPanel()
     if (panelOpen) renderPanel()
     updateActive()
   }

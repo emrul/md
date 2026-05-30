@@ -4,8 +4,15 @@ go 1.25.0
 
 require (
 	github.com/BurntSushi/toml v1.6.0
+	github.com/emrul/md-pro v0.0.0
 	github.com/wailsapp/wails/v3 v3.0.0-alpha.96
 )
+
+// md-pro is only referenced from pro_on.go behind //go:build pro.
+// In the default OSS build it's never compiled, but `go mod tidy` still
+// scans the import — so we point it at an in-tree stub. `task setup:pro`
+// generates a go.work that overrides this for pro builds.
+replace github.com/emrul/md-pro => ./internal/pro-stub
 
 require (
 	dario.cat/mergo v1.0.2 // indirect

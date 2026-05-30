@@ -22,6 +22,19 @@ export interface ViewController {
   redo(): boolean
   onModeChange(fn: () => void): () => void
   onContentChange(fn: () => void): () => void
+  /**
+   * Mount a read-only overlay covering the editor/source view (generic — the
+   * commercial overlay uses it for the diff view, but nothing here knows about
+   * diffs). Hides the active view, shows `content`, binds Esc → close, and
+   * focuses it. Opening while another overlay is open replaces it. The overlay
+   * is orthogonal to `mode`; switching mode (or `toggle`) closes it first.
+   */
+  openReadonlyOverlay(content: HTMLElement, opts?: { onClose?: () => void }): void
+  /** Close the read-only overlay and restore the view for the current mode. */
+  closeReadonlyOverlay(): void
+  /** True while a read-only overlay is mounted. */
+  readonly overlayOpen: boolean
+  onOverlayChange(fn: () => void): () => void
 }
 
 export interface CreateViewControllerOptions {
@@ -43,6 +56,13 @@ export function createViewController(opts: CreateViewControllerOptions): ViewCon
   let sourceBaseline: string | null = null
   const modeListeners = new Set<() => void>()
   const contentListeners = new Set<() => void>()
+  const overlayListeners = new Set<() => void>()
+
+  // Read-only overlay (e.g. the pro diff view). Orthogonal to `mode`: it covers
+  // whichever view is active and restores it on close.
+  let overlayEl: HTMLElement | null = null
+  let overlayOnClose: (() => void) | undefined
+  let overlayKeydown: ((e: KeyboardEvent) => void) | undefined
 
   opts.sourceParent.style.display = 'none'
 
@@ -51,6 +71,56 @@ export function createViewController(opts: CreateViewControllerOptions): ViewCon
   }
   function notifyContent(): void {
     for (const fn of contentListeners) fn()
+  }
+  function notifyOverlay(): void {
+    for (const fn of overlayListeners) fn()
+  }
+
+  // Show the view that belongs to the current mode (used after closing an
+  // overlay). In source mode the CodeMirror parent is visible; otherwise the
+  // editor's scroll wrapper is.
+  function showActiveView(): void {
+    const inSource = mode === 'source'
+    opts.hybridContainer.style.display = inSource ? 'none' : ''
+    opts.sourceParent.style.display = inSource ? '' : 'none'
+  }
+
+  function openReadonlyOverlay(content: HTMLElement, o?: { onClose?: () => void }): void {
+    closeReadonlyOverlay()
+    const parent = opts.hybridContainer.parentElement
+    if (!parent) return
+    opts.hybridContainer.style.display = 'none'
+    opts.sourceParent.style.display = 'none'
+    overlayEl = content
+    overlayOnClose = o?.onClose
+    if (content.tabIndex < 0) content.tabIndex = -1
+    parent.appendChild(content)
+    // Esc closes. Bound on the element (not document) so it's torn down with the
+    // overlay and can't leak past a tab close.
+    overlayKeydown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        closeReadonlyOverlay()
+      }
+    }
+    content.addEventListener('keydown', overlayKeydown)
+    content.focus()
+    notifyOverlay()
+  }
+
+  function closeReadonlyOverlay(): void {
+    if (!overlayEl) return
+    if (overlayKeydown) overlayEl.removeEventListener('keydown', overlayKeydown)
+    overlayKeydown = undefined
+    overlayEl.remove()
+    overlayEl = null
+    const cb = overlayOnClose
+    overlayOnClose = undefined
+    showActiveView()
+    if (mode === 'source') sourceView?.focus()
+    else opts.editor.commands.focus()
+    notifyOverlay()
+    cb?.()
   }
 
   function enterSource(): void {
@@ -88,6 +158,9 @@ export function createViewController(opts: CreateViewControllerOptions): ViewCon
   }
 
   function setMode(next: ViewMode): void {
+    // A read-only overlay is orthogonal to mode; tear it down before any switch
+    // so source⇄diff⇄source transitions don't fight over which view is visible.
+    if (overlayEl) closeReadonlyOverlay()
     if (next === mode) return
     if (next === 'source') {
       enterSource()
@@ -164,6 +237,15 @@ export function createViewController(opts: CreateViewControllerOptions): ViewCon
     onContentChange: (fn) => {
       contentListeners.add(fn)
       return () => contentListeners.delete(fn)
+    },
+    openReadonlyOverlay,
+    closeReadonlyOverlay,
+    get overlayOpen(): boolean {
+      return overlayEl !== null
+    },
+    onOverlayChange: (fn) => {
+      overlayListeners.add(fn)
+      return () => overlayListeners.delete(fn)
     },
   }
 }

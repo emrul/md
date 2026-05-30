@@ -3,6 +3,7 @@ import {
   Set as SetPrefs,
   TrackRecentRoot as $TrackRecentRoot,
   TogglePinnedRoot as $TogglePinnedRoot,
+  SetFeatureSetting as $SetFeatureSetting,
 } from '../../bindings/markdownmd/app/preferencesservice.js'
 import { Preferences as PrefsModel } from '../../bindings/markdownmd/app/models.js'
 
@@ -16,6 +17,12 @@ export interface Preferences {
   editorMode: EditorMode
   pinnedRoots: string[]
   recentRoots: string[]
+  /**
+   * Generic, add-only string→string bag for optional features (e.g. the pro
+   * overlay). Core never reads specific keys — it just round-trips the map — so
+   * no feature names leak into OSS. Access via getFeatureSetting/setFeatureSetting.
+   */
+  featureSettings: Record<string, string>
 }
 
 const defaults: Preferences = {
@@ -24,6 +31,7 @@ const defaults: Preferences = {
   editorMode: 'hybrid',
   pinnedRoots: [],
   recentRoots: [],
+  featureSettings: {},
 }
 
 let cached: Preferences = { ...defaults }
@@ -55,7 +63,20 @@ function fromWire(p: PrefsModel): Preferences {
         : defaults.editorMode,
     pinnedRoots: Array.isArray(p.pinnedRoots) ? p.pinnedRoots : [],
     recentRoots: Array.isArray(p.recentRoots) ? p.recentRoots : [],
+    featureSettings: toStringMap(p.featureSettings),
   }
+}
+
+// The generated model types map values as `string | undefined`; normalize to a
+// plain Record<string,string> so callers get defined values.
+function toStringMap(v: unknown): Record<string, string> {
+  const out: Record<string, string> = {}
+  if (v && typeof v === 'object') {
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      if (typeof val === 'string') out[k] = val
+    }
+  }
+  return out
 }
 
 /** Synchronous accessor for the cached preferences. */
@@ -79,10 +100,40 @@ export function updatePreference<K extends keyof Preferences>(
     editorMode: cached.editorMode,
     pinnedRoots: cached.pinnedRoots,
     recentRoots: cached.recentRoots,
+    // Round-trip the generic feature bag so an unrelated preference save never
+    // wipes it (it's not a typed field the caller of updatePreference touches).
+    featureSettings: cached.featureSettings,
   })
   void SetPrefs(onWire).catch((err) => {
     console.warn('[prefs] failed to persist', key, err)
   })
+}
+
+/**
+ * Read a single key from the generic feature-settings bag (synchronous, from the
+ * cache). Returns '' when absent. Exposed via the @markdownmd barrel so the
+ * commercial overlay can persist small per-feature settings without a dedicated
+ * typed preference field.
+ */
+export function getFeatureSetting(key: string): string {
+  return cached.featureSettings[key] ?? ''
+}
+
+/**
+ * Write one key into the feature-settings bag and persist. Goes through the Go
+ * SetFeatureSetting (read-modify-write on disk) so it merges a single key rather
+ * than re-serializing the whole Preferences struct; the returned value refreshes
+ * the cache. Optimistically updates the cache first so a synchronous
+ * getFeatureSetting right after sees the new value.
+ */
+export async function setFeatureSetting(key: string, value: string): Promise<void> {
+  cached = { ...cached, featureSettings: { ...cached.featureSettings, [key]: value } }
+  try {
+    const updated = await $SetFeatureSetting(key, value)
+    cached = fromWire(updated)
+  } catch (err) {
+    console.warn('[prefs] setFeatureSetting failed', key, err)
+  }
 }
 
 /**

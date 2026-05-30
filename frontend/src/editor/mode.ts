@@ -49,6 +49,20 @@ function blockToMarkdown(editor: Editor, node: PMNode): string {
   return markdownIO(editor).serializer.serialize(doc).replace(/\n+$/, '')
 }
 
+// Round-trip a markdown string through the editor's parser + serializer to get
+// its canonical form (markdown → HTML → PM doc → markdown). Two strings that are
+// semantically identical but spelled differently (e.g. `_x_` vs `*x*`, varying
+// list markers, trailing whitespace, line endings) normalize to the same bytes.
+// Exposed via the @markdownmd barrel so a diff can compare two snapshots without
+// drowning in serializer-normalization noise. Does NOT touch the live editor.
+export function normalizeMarkdown(editor: Editor, raw: string): string {
+  if (!raw.trim()) return ''
+  const nodes = nodesFromMarkdown(editor, raw)
+  if (!nodes.length) return ''
+  const doc = editor.schema.nodes.doc.create(null, nodes)
+  return markdownIO(editor).serializer.serialize(doc).replace(/\n+$/, '')
+}
+
 function applyReplace(editor: Editor, content: PMNode[], addToHistory: boolean): void {
   const { state, view } = editor
   const from = state.selection.from

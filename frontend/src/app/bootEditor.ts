@@ -11,6 +11,7 @@ import { mountStatusbar } from '../ui/statusbar'
 import { mountTabStrip } from '../ui/tabStrip'
 import { mountExplorer } from '../ui/explorer'
 import { mountToc } from '../ui/toc'
+import { mountGutterRail } from '../ui/gutterRail'
 import { findGitRoot, gitBranch } from '../services/workspace'
 import { openPaths } from '../services/files'
 import { getRestoreWindow, saveWindowContent, type SessionContent } from '../services/session'
@@ -100,7 +101,11 @@ export async function bootEditorWindow(): Promise<void> {
   tm.onChange(refreshAll)
 
   const explorerState = new ExplorerState()
-  const featureCtx: FeatureContext = { tm, explorer: explorerState }
+  // The left gutter rail owns positioning + vertical stacking for ToC and any
+  // pro rail items (Change History). Constructed once, shared with mountToc and
+  // exposed to features via featureCtx.
+  const rail = mountGutterRail(host, tm, explorerState)
+  const featureCtx: FeatureContext = { tm, explorer: explorerState, rail }
 
   registerCommands(tm, explorerState)
   for (const f of features()) f.registerCommands?.(featureCtx)
@@ -110,7 +115,7 @@ export async function bootEditorWindow(): Promise<void> {
   statusbar = mountStatusbar(tm, explorerState)
   tabStrip = mountTabStrip(tm)
   mountExplorer(explorerState, tm)
-  toc = mountToc(tm, explorerState, host)
+  toc = mountToc(tm, explorerState, host, rail)
   for (const f of features()) f.mount?.(featureCtx)
 
   Events.On('command', (ev) => {

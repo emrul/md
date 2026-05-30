@@ -23,7 +23,14 @@
     "noFallthroughCasesInSwitch": true,
 
     "noEmit": true,
-    "useDefineForClassFields": true
+    "useDefineForClassFields": true,
+
+    "paths": {
+      "@pro": ["./src/pro-stub/register.ts"],
+      "@pro/*": ["./src/pro-stub/*"],
+      "@pro-bindings": ["./bindings/github.com/emrul/md-pro"],
+      "@pro-bindings/*": ["./bindings/github.com/emrul/md-pro/*"]
+    }
   },
   "include": ["src", "bindings"]
 }

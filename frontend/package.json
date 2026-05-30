@@ -38,6 +38,7 @@
     "@tiptap/starter-kit": "^2.11.5",
     "@tiptap/suggestion": "^2.27.2",
     "@wailsio/runtime": "file:vendor/wailsio-runtime.tgz",
+    "diff": "^5.2.0",
     "highlight.js": "^11.11.1",
     "katex": "^0.17.0",
     "lowlight": "^3.3.0",
@@ -45,6 +46,7 @@
     "tiptap-markdown": "^0.8.10"
   },
   "devDependencies": {
+    "@types/diff": "^5.2.3",
     "@types/katex": "^0.16.8",
     "prettier": "^3.8.3",
     "typescript": "^6.0.3",

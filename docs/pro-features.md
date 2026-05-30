@@ -1,228 +1,346 @@
-> **NEXT AGENT — START HERE.** The public-repo seams are done; the `md-pro`
-> overlay repo does not exist yet. Your task: **scaffold `md-pro` end-to-end to
-> prove the path.** Specifically:
->
-> 1. Create the `md-pro` repo with this public repo as a **git submodule**.
-> 2. Wire the **vite alias** so `@markdownmd` resolves to the submodule's
->    `frontend/src` (see "Frontend side" below).
-> 3. Add a `main.go` with its **own `//go:embed`** of the pro dist that calls
->    `app.Run(app.Options{Assets, ExtraServices, OnReady})`, plus a
->    **`LicenseService`** in `pro/`.
-> 4. Ship **one sample gated feature** (a `FeatureModule` registered before
->    `boot()`, gated on the license) to prove the full path compiles, builds,
->    and runs.
->
-> The full target layout, code snippets, and invariants are below. Keep this
-> public repo untouched and green while you work in `md-pro`.
+# Pro features — architecture and contributor guide
 
-# Writing pro features (the open-core split)
+> **Audience.** Agents and contributors adding paid features to MarkdownMD.
+> Read this top-to-bottom before touching anything tagged `pro`. The
+> mental model is short; the rules that follow are load-bearing.
 
-MarkdownMD is **open-core**. This public repo is the free app and stays fully
-OSS and buildable on its own. Paid ("pro") features live in a **separate private
-repo, `md-pro`**, that depends on this one and produces the commercial build. No
-pro code lives in this tree.
+## TL;DR — what to know in one minute
 
-> If you are an agent working in the public repo: nothing here changes how the
-> free app behaves. The pro seams below are **dormant** in OSS — no features are
-> registered, so every hook is a no-op. Your job is usually to keep the seams
-> stable, not to add pro code here.
+- MarkdownMD is **open-core**. The public repo (`emrul/md`) is the home
+  base for both the free OSS build and the commercial pro build.
+- The actual pro source lives in a **separate private Go module** at
+  `github.com/emrul/md-pro`, kept on disk as a sibling working tree
+  (`../md-pro/` relative to `md/`).
+- One Go build tag (`pro`) and one env flag (`PRO=1`) flip everything in
+  lockstep. With them, the build links in the pro Go module and the pro
+  frontend modules; without them, neither is touched.
+- The OSS build always works **standalone with zero auth**:
+  `git clone <md> && go build` succeeds with no sibling, no network
+  reach into the private repo, no submodule magic.
 
-## Why a second repo (and not build tags)
+```
+~/dev/emrul/
+  md/        public OSS app, home base for builds
+  md-pro/    private — pro Go module + pro frontend source
+```
 
-`package main` is not importable, and we want the free app to compile from this
-repo alone. So the reusable app assembly lives in the importable `markdownmd/app`
-package, and `md-pro` imports it. We chose this private-overlay model ("Option
-A") over a single-repo `ee/`-directory model so pro source is never published.
+## Why this layout (briefly)
 
-The honest limitation: **anything shipped to the client can be read.** Open-core
-hides pro code from the public repo and lets you enforce a license legally, but a
-determined user can decompile the binary or bundled JS. Only **server-backed**
-features (AI proxy, sync, cloud) are cryptographically protectable. Pick gated
-features accordingly.
+Two earlier shapes were rejected:
 
-## The two injection points
+- **Overlay repo containing public as a submodule.** Real source
+  privacy, but the day-to-day reverses (you stop working in `md`); CI
+  doubles; the public Releases page becomes an empty shell.
+- **Pro submodule inside public.** Single conceptual repo, but breaks
+  public CI (no token for the private submodule), breaks contributor
+  builds (clone gets a missing submodule), and softens the OSS promise.
 
-Everything plugs in through exactly two seams. Don't add a third without good
-reason.
+The **optional Go module** shape solves all three. The trade-off it
+explicitly accepts: anything shipped to a client is readable. Source
+privacy in git is a development concern, not a runtime protection. Real
+protection only exists for **server-backed** features (AI proxy, sync,
+cloud). Pick gated features accordingly.
 
-### 1. Go — `app.Run(app.Options{…})`
+## The two seams
+
+Pro features plug in through exactly two extension points. Don't add a
+third without good reason.
+
+### Seam 1 — Go: `app.Options{ ExtraServices, OnReady }`
 
 `app/app.go` exposes:
 
 ```go
 type Options struct {
-    Assets        fs.FS                              // embedded frontend bundle (required)
-    ExtraServices []application.Service              // appended after core services
+    Assets        fs.FS                              // embedded frontend bundle
+    ExtraServices []application.Service              // pro Wails services appended after core
     OnReady       func(app *application.App)         // runs after core menus, before Run
+    Version       string                             // self-updater version string
 }
 ```
 
-- The free `main.go` (repo root) owns `//go:embed all:frontend/dist` and calls
-  `app.Run(app.Options{Assets: assets})` — nothing else. The embed lives at the
-  root because `go:embed` can't reach `frontend/dist` with `..` from a subpackage.
-- `md-pro`'s `main.go` embeds its **own** combined dist and injects pro services
-  + an `OnReady` that appends menus and reads the license.
+`main.go` always calls `applyPro(&opts)` between constructing the
+options and `app.Run`. Two files own that function, and **only one is
+compiled per build**:
 
-### 2. Frontend — `registerFeature(FeatureModule)`
+| File | Build tag | Body |
+| --- | --- | --- |
+| `pro_off.go` | `!pro` (the default OSS build) | empty `applyPro` |
+| `pro_on.go` | `pro` | imports `github.com/emrul/md-pro/pro`, appends `LicenseService` to `ExtraServices`, chains `OnReady` to `pro.AppendMenus` |
 
-`frontend/src/app/features.ts` is the registry. A pro feature implements:
+The import in `pro_on.go` is resolved differently per build mode:
+
+| Build mode | Where the import resolves |
+| --- | --- |
+| Default (no `-tags pro`) | `internal/pro-stub/` — a tiny stub Go module with signature-matching `panic()` bodies. Never executed (file is build-tag-excluded). Exists so `go mod tidy` doesn't try to fetch the private module from the network. |
+| `-tags pro` | `../md-pro/` — the real private module, via a `use` directive in `go.work`. `task setup:pro` writes the `go.work` file. |
+
+### Seam 2 — Frontend: `registerFeature(FeatureModule)`
+
+`frontend/src/app/features.ts` is the registry. The entry
+(`frontend/src/app/main.ts`) always calls `registerProFeatures()` from
+`@pro/register` before `boot()`. Vite's alias for `@pro` is conditional
+on the `PRO` env var:
+
+| Build mode | Where `@pro` resolves |
+| --- | --- |
+| `PRO` unset | `frontend/src/pro-stub/register.ts` — `registerProFeatures()` is an empty function. |
+| `PRO=1` (set by `task build:pro` / `dev:pro`) | `../../md-pro/frontend/src/` — the real entry that calls `registerFeature(aiAssist)` etc. |
+
+A `FeatureModule` looks like:
 
 ```ts
 interface FeatureModule {
-  id: string                                   // stable, e.g. "pro.ai-assist"
-  registerCommands?(ctx: FeatureContext): void // once, after core commands
-  attachTab?(tab: Tab, ctx: FeatureContext): void // per tab created
-  mount?(ctx: FeatureContext): void            // once, after core UI mounts
+  id: string                                          // stable, e.g. "pro.ai-assist"
+  registerCommands?(ctx: FeatureContext): void        // once, after core commands
+  attachTab?(tab: Tab, ctx: FeatureContext): void     // per tab created
+  mount?(ctx: FeatureContext): void                   // once, after core UI mounts
 }
 ```
 
-`bootEditor.ts` invokes the hooks at three points (search for `features()`):
-after `registerCommands`, inside `attachTabFeatures`, and after the UI mounts.
-`FeatureContext` is a **cross-repo API surface** — only ever add fields, never
-reorder or remove.
+`@markdownmd` is the stable public-API barrel (`frontend/src/index.ts`)
+that pro source imports from: `boot`, `registerFeature`, `FeatureModule`,
+`FeatureContext`, `commands`, `Command`, `TabManager`, `ExplorerState`,
+`Tab`. **Add-only API.** Reordering or removing exports breaks `md-pro`
+silently because it pins md as a sibling.
 
-The public API the overlay imports is re-exported from
-`frontend/src/index.ts` (resolved via the `@markdownmd` alias, below):
-`boot`, `bootEditorWindow`, `registerFeature`, `FeatureModule`,
-`FeatureContext`, `commands`, `Command`, `TabManager`, `ExplorerState`, `Tab`.
+## Adding a new pro feature — step-by-step recipe
 
-## Anatomy of a pro feature (lives in `md-pro`)
+You'll usually be touching **only the `md-pro` repo**, with occasional
+extension of the stub in `md`. Each feature has a Go side (optional)
+and a frontend side (always).
+
+### 1. Add the frontend `FeatureModule` in `md-pro`
+
+File: `~/dev/emrul/md-pro/frontend/src/features/<yourFeature>.ts`
+
+Pattern (adapted from `aiAssist.ts`):
 
 ```ts
-// md-pro/frontend/src/features/aiAssist.ts
 import { commands, type FeatureModule } from '@markdownmd'
-import { hasEntitlement } from '../license' // talks to the pro Go LicenseService
+import { hasEntitlement, showUpsell } from '../license'
 
-export const aiAssist: FeatureModule = {
-  id: 'pro.ai-assist',
+export const yourFeature: FeatureModule = {
+  id: 'pro.your-feature',           // stable id — used for dedupe & logging
   registerCommands() {
     commands.register({
-      id: 'pro.ai.rewrite',
-      label: 'AI: Rewrite selection',
+      id: 'pro.your.action',
+      label: 'Pro: do the thing',
+      keybinding: 'Cmd+Shift+Y',
       handler: async () => {
-        if (!(await hasEntitlement('ai'))) return showUpsell('ai')
-        // ...call the pro Go service, which proxies your server...
+        if (!(await hasEntitlement('your-feature'))) {
+          showUpsell('your-feature')
+          return
+        }
+        // ...real work, almost always calling a pro Go service...
       },
     })
   },
 }
 ```
 
-Two gating styles — pick per feature:
+Pick a gating style per feature:
 
-- **Hidden:** don't `commands.register(...)` at all unless licensed. The command
-  simply doesn't exist for free users.
-- **Discoverable:** always register, then check the entitlement in the handler
-  and show an upsell. Better for conversion; the menu item is visible.
+- **Hidden.** Don't `commands.register(...)` at all unless licensed. The
+  verb simply doesn't exist for free users.
+- **Discoverable.** Always register, then check entitlement in the
+  handler and `showUpsell(...)` if missing. Better for conversion. Used
+  by `aiAssist`.
 
-Always gate in the **Go `LicenseService`**, not just JS — JS checks are trivially
-bypassed. The handler should fail closed if the license can't be verified.
+### 2. Register it in `md-pro/frontend/src/register.ts`
 
-## The `md-pro` repo layout
+```ts
+import { registerFeature } from '@markdownmd'
+import { aiAssist } from './features/aiAssist'
+import { yourFeature } from './features/yourFeature'      // ← add
 
-```
-md-pro/
-  go.mod                 # module github.com/<you>/md-pro; require markdownmd
-  go.work                # or a replace → vendor/md (so Go resolves the submodule)
-  main.go                # embeds pro dist, calls app.Run with pro services + OnReady
-  pro/                   # Go: LicenseService, server-backed pro services
-  vendor/md/             # git submodule of THIS repo (the public app)
-  frontend/
-    index.html           # <script src="/src/main.ts">
-    vite.config.ts       # alias @markdownmd → vendor/md/frontend/src
-    src/
-      main.ts            # registerFeature(...) ; boot()
-      features/…         # pro FeatureModules
-      license.ts         # wraps the pro Go LicenseService bindings
-```
-
-### Go side (`md-pro/main.go`)
-
-```go
-//go:embed all:frontend/dist
-var assets embed.FS
-
-func main() {
-    lic := pro.NewLicenseService()
-    if err := app.Run(app.Options{
-        Assets:        assets,
-        ExtraServices: []application.Service{application.NewService(lic)},
-        OnReady:       func(a *application.App) { pro.AppendMenus(a, lic) },
-    }); err != nil {
-        log.Fatal(err)
-    }
+export function registerProFeatures(): void {
+  registerFeature(aiAssist)
+  registerFeature(yourFeature)                            // ← add
 }
 ```
 
-The free `frontend/dist` is **not** embedded in the pro binary — the pro Vite
-build (below) produces a combined dist that this embed points at.
+That's it for a pure-frontend pro feature. If your feature needs Go
+(native capability, server proxy, anything not in the renderer
+sandbox), continue:
 
-### Frontend side (`md-pro/vite.config.ts`)
+### 3. (Optional) Add a pro Go service
 
-```ts
-import { defineConfig } from 'vite'
-import wails from '@wailsio/runtime/plugins/vite'
-import { resolve } from 'node:path'
+In `~/dev/emrul/md-pro/pro/<yourservice>.go`:
 
-const pub = resolve(__dirname, 'vendor/md/frontend')
-export default defineConfig({
-  plugins: [wails('./bindings')],
-  resolve: {
-    alias: {
-      '@markdownmd': resolve(pub, 'src/index.ts'),       // the barrel
-      '@markdownmd/': resolve(pub, 'src') + '/',          // deep imports if needed
-    },
-  },
-  build: { target: 'es2022' },
-  esbuild: { target: 'es2022' },
-})
+```go
+package pro
+
+type YourService struct {
+    lic *LicenseService
+}
+
+func NewYourService(lic *LicenseService) *YourService {
+    return &YourService{lic: lic}
+}
+
+// YourMethod is callable from TypeScript via the generated bindings.
+// ALWAYS re-check the license here — JS gating is for UI ergonomics,
+// not protection.
+func (s *YourService) YourMethod(arg string) (string, error) {
+    if !s.lic.HasEntitlement("your-feature") {
+        return "", errors.New("not licensed")
+    }
+    // ...do the work...
+    return result, nil
+}
 ```
 
-### Frontend entry (`md-pro/frontend/src/main.ts`)
+Wire it in `md-pro/pro/menu.go`'s exports (or wherever the service
+constructor is referenced) so `md`'s `pro_on.go` can register it via
+`ExtraServices`. If `pro_on.go` already has the wiring you need, you're
+done; if you're adding a new top-level service, `pro_on.go` needs a new
+`application.NewService(...)` call.
 
-```ts
-import { registerFeature, boot } from '@markdownmd'
-import { aiAssist } from './features/aiAssist'
+### 4. (If you added a new pro Go service or method) Update the stub
 
-registerFeature(aiAssist) // BEFORE boot — bootEditor reads the registry as it wires up
-await boot()
+File: `~/dev/emrul/md/internal/pro-stub/pro/stub.go`
+
+The stub MUST mirror the real package's exported signatures, or
+`go mod tidy` in OSS will fail. Add stubs with `panic()` bodies:
+
+```go
+type YourService struct{}
+
+func NewYourService(_ *LicenseService) *YourService {
+    panic("md-pro stub: real module not linked; setup:pro must run before -tags pro builds")
+}
+
+func (s *YourService) YourMethod(_ string) (string, error) {
+    panic("md-pro stub: real module not linked; setup:pro must run before -tags pro builds")
+}
 ```
 
-`boot()` handles the editor-vs-logs window branch, so the pro entry stays a
-register-then-boot two-liner.
+The panics are guardrails — these stubs are never compiled into the OSS
+binary because `pro_on.go` is build-tag-excluded, and never compiled
+into the pro binary because `go.work` redirects to the real module. The
+panic just makes a misconfigured build fail loudly instead of silently
+returning zero values.
 
-## Adding a pro feature — checklist
+### 5. Regenerate bindings and rebuild
 
-1. In `md-pro`, write a `FeatureModule` (a file under `frontend/src/features/`).
-2. If it needs native capability or server access, add a Go service in `pro/`
-   and inject it via `ExtraServices`; regenerate bindings in `md-pro`.
-3. Gate it on the license (`LicenseService`), choosing hidden vs discoverable.
-4. `registerFeature(...)` it in `md-pro/frontend/src/main.ts`.
-5. If you need menu items, append them in `OnReady` (Go) — native menus are app
-   chrome (see `docs/architecture.md`).
-6. Build `md-pro`; the free repo must remain untouched and green.
+```sh
+cd ~/dev/emrul/md
+wails3 task setup:pro                                 # idempotent, generates go.work
+wails3 generate bindings -f "-tags=pro" -clean=true   # IPC files for pro services
+wails3 task build:pro                                 # → bin/MarkdownMD (with pro)
+```
 
-## Invariants (don't break these)
+Bindings for the new service land under
+`frontend/bindings/github.com/emrul/md-pro/pro/<yourservice>.js`. Import
+them in `md-pro/frontend/src/<wherever>.ts` via the `@pro-bindings`
+alias:
 
-- **No pro code in the public repo.** If you're editing this tree and reaching
-  for a license check, you're in the wrong repo.
-- **Keep the public build green and standalone** — `go build .`, `go test ./app`,
-  `npm run typecheck`, `npm run build` all pass with zero pro code present.
-- **`FeatureContext` / `Options` / the `index.ts` barrel are stable API.** Add,
-  don't reorder/remove — `md-pro` pins this repo as a submodule and will break.
-- **Every reachable verb still goes through `commands/`** and **markdown stays
-  source-of-truth** — pro features obey the same rules as core
-  (see `docs/architecture.md`).
-- **Regenerate bindings after moving Go packages.** Wails hashes call IDs from
-  the package import path; stale bindings silently break IPC.
+```ts
+import { YourMethod } from '@pro-bindings/pro/yourservice.js'
+```
 
-## Where the seams are in this repo
+### 6. Verify both builds
+
+```sh
+cd ~/dev/emrul/md
+wails3 task build                                     # OSS — pro absent
+wails3 task build:pro                                 # pro present
+```
+
+Both should succeed. The OSS binary must not contain any pro symbol
+strings; the pro binary must contain your feature's command id when
+grep'd from `frontend/dist/`.
+
+## Build / dev reference
+
+```sh
+# OSS workflow (fresh clone works as-is)
+wails3 task dev                # hot reload, OSS only
+wails3 task build              # → bin/MarkdownMD, OSS
+wails3 task package            # → bin/MarkdownMD.app etc.
+
+# Pro workflow (requires ../md-pro/ checkout)
+wails3 task setup:pro          # one-time per clone; generates go.work
+wails3 task dev:pro            # hot reload with pro features
+wails3 task build:pro          # → bin/MarkdownMD, with pro features
+wails3 task package:pro        # → pro .app / .AppImage / etc.
+
+# Testing the license gate manually
+MARKDOWNMD_LICENSE=anything wails3 task dev:pro
+# pro.ai.rewrite (Cmd+Shift+A) logs "entitlement OK"
+wails3 task dev:pro
+# pro.ai.rewrite logs the upsell warning
+```
+
+## Common pitfalls (what trips agents up)
+
+- **Forgetting to update the stub when adding pro Go methods.** OSS
+  `go mod tidy` will fail with "package pro does not declare
+  YourMethod" or similar. Stub signatures MUST mirror the real module.
+- **Editing `pro_on.go` to add new imports without updating the stub.**
+  Same failure mode as above.
+- **Setting `PRO=1` without running `setup:pro` first.** Go side fails
+  with "no required module provides...". Frontend side silently falls
+  back to the stub. Run `setup:pro` once per clone.
+- **Running `task build` while expecting pro features.** `task build`
+  is OSS. Pro tasks all have `:pro` suffix.
+- **Running `go mod tidy` after editing pro_on.go's import without
+  `go.work` present.** Will try to fetch the private module from
+  network. Either run `setup:pro` first or temporarily revert
+  pro_on.go.
+- **Importing from `@pro/...` or `@pro-bindings/...` in core OSS code.**
+  Those aliases are for pro source only. Core OSS code uses relative
+  imports.
+- **Forgetting to regenerate bindings after adding a pro Go method.**
+  `wails3 generate bindings -f "-tags=pro" -clean=true`. Old bindings
+  silently break IPC.
+- **Modifying the public API (`frontend/src/index.ts`,
+  `app/app.go:Options`, `FeatureContext`) by reordering or removing.**
+  This is stable cross-repo API. Add-only.
+
+## Invariants — don't break these
+
+1. **OSS standalone.** `git clone <md> && go build` works with zero
+   auth, zero submodules. The pro module is never fetched.
+2. **One binary per platform per release.** The pro build is the
+   official distribution; the OSS build is a contributor guarantee
+   that "you can build this from open source."
+3. **Pro source never lives in `md`.** If you're in this repo and
+   reaching for a license check or a `pro.` command handler, you're in
+   the wrong repo.
+4. **Gate paid work in the Go `LicenseService`**, not just JS. JS
+   checks are for UI ergonomics. The handler must fail closed when the
+   license can't be verified.
+5. **Stable cross-repo API.** `FeatureContext`, `app.Options`, the
+   `frontend/src/index.ts` barrel — add-only. Never reorder or remove.
+   `md-pro` pins this repo as a sibling and would otherwise silently
+   break.
+6. **Stub signatures mirror the real module.** Every export in
+   `~/dev/emrul/md-pro/pro/*.go` must have a matching declaration in
+   `internal/pro-stub/pro/stub.go`. `panic()` bodies are fine.
+7. **Every reachable verb still goes through `commands/`** and
+   **markdown stays source-of-truth.** Pro features obey the same
+   rules as core (see `docs/architecture.md`).
+8. **Regenerate bindings after moving Go packages.** Wails hashes call
+   IDs from import paths; stale bindings silently break IPC.
+
+## Map of the seams in this repo
 
 | Seam | File |
 | --- | --- |
 | Go options / assembly | `app/app.go` (`Run`, `Options`) |
-| Free Go entry + embed | `main.go` |
+| Free entry + embed | `main.go` |
+| Pro applyPro stub (OSS) | `pro_off.go` |
+| Pro applyPro real (pro) | `pro_on.go` |
+| Stub Go module (tidy guard) | `internal/pro-stub/go.mod`, `internal/pro-stub/pro/stub.go` |
+| Workspace generation | `Taskfile.yml` → `setup:pro` |
 | Frontend feature registry | `frontend/src/app/features.ts` |
 | Hook invocation points | `frontend/src/app/bootEditor.ts` (`features()`) |
 | Window boot branch | `frontend/src/app/boot.ts` |
+| Frontend entry (calls registerProFeatures) | `frontend/src/app/main.ts` |
+| OSS frontend stub | `frontend/src/pro-stub/register.ts` |
+| Vite aliases | `frontend/vite.config.js` (`@markdownmd`, `@pro`, `@pro-bindings`) |
+| TS path aliases | `frontend/tsconfig.json` (`paths`) |
 | Public JS API barrel | `frontend/src/index.ts` |
+| Pro tasks | `Taskfile.yml` → `setup:pro`, `build:pro`, `dev:pro`, `package:pro` |
