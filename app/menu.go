@@ -14,7 +14,22 @@ func buildAppMenu(app *application.App) *application.Menu {
 	menu := app.NewMenu()
 
 	if runtime.GOOS == "darwin" {
-		menu.AddRole(application.AppMenu)
+		// Build the macOS app menu by hand (instead of the AppMenu role) so we
+		// can put "Check for Updates…" right under About — where Mac users look
+		// for it — rather than in the File menu. Mirrors application.NewAppMenu()
+		// otherwise. The first submenu is the app menu on macOS.
+		appMenu := menu.AddSubmenu("MarkdownMD")
+		appMenu.AddRole(application.About)
+		appMenu.AddSeparator()
+		appMenu.Add("Check for Updates…").OnClick(checkForUpdates(app))
+		appMenu.AddSeparator()
+		appMenu.AddRole(application.ServicesMenu)
+		appMenu.AddSeparator()
+		appMenu.AddRole(application.Hide)
+		appMenu.AddRole(application.HideOthers)
+		appMenu.AddRole(application.UnHide)
+		appMenu.AddSeparator()
+		appMenu.AddRole(application.Quit)
 	}
 
 	file := menu.AddSubmenu("File")
@@ -26,11 +41,14 @@ func buildAppMenu(app *application.App) *application.Menu {
 	addCmd(app, file, "Save As…", "CmdOrCtrl+Shift+s", "file.saveAs")
 	file.AddSeparator()
 	addCmd(app, file, "Close Tab", "CmdOrCtrl+w", "tab.close")
-	file.AddSeparator()
-	// Go-side action (not a frontend command): drives the native updater +
-	// its window directly. CheckAndInstall opens the update window, checks
-	// GitHub, and downloads/stages a newer release if one is found.
-	file.Add("Check for Updates…").OnClick(checkForUpdates(app))
+	// "Check for Updates…" lives in the macOS App menu (built above). Windows/
+	// Linux have no app menu, so keep it in File there. Go-side action (not a
+	// frontend command): CheckAndInstall opens the update window, checks GitHub,
+	// and downloads/stages a newer release if one is found.
+	if runtime.GOOS != "darwin" {
+		file.AddSeparator()
+		file.Add("Check for Updates…").OnClick(checkForUpdates(app))
+	}
 
 	edit := menu.AddSubmenu("Edit")
 	addCmd(app, edit, "Undo", "CmdOrCtrl+z", "edit.undo")
