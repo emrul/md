@@ -8,7 +8,16 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from '@codemirror/view'
-import { history, defaultKeymap, historyKeymap, indentWithTab } from '@codemirror/commands'
+import {
+  history,
+  defaultKeymap,
+  historyKeymap,
+  indentWithTab,
+  redo as cmRedo,
+  redoDepth as cmRedoDepth,
+  undo as cmUndo,
+  undoDepth as cmUndoDepth,
+} from '@codemirror/commands'
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language'
 import { markdown } from '@codemirror/lang-markdown'
 import { tags as t } from '@lezer/highlight'
@@ -93,6 +102,11 @@ export interface SourceView {
   setValue(text: string): void
   focus(): void
   destroy(): void
+  /** Try to undo a CM-side edit. Returns false when CM history is empty so the
+   * caller can fall back to the editor's history (a unified undo). */
+  tryUndo(): boolean
+  /** Symmetrical redo. */
+  tryRedo(): boolean
 }
 
 export function createSourceView(opts: SourceViewOptions): SourceView {
@@ -132,5 +146,7 @@ export function createSourceView(opts: SourceViewOptions): SourceView {
     },
     focus: () => view.focus(),
     destroy: () => view.destroy(),
+    tryUndo: () => (cmUndoDepth(view.state) === 0 ? false : cmUndo(view)),
+    tryRedo: () => (cmRedoDepth(view.state) === 0 ? false : cmRedo(view)),
   }
 }

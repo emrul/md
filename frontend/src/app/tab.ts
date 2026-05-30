@@ -1,4 +1,6 @@
 import type { Editor } from '@tiptap/core'
+import { undoDepth } from '@tiptap/pm/history'
+import { clearEditorHistory } from '../editor/historyControl'
 import type { ViewController } from './viewMode'
 
 type Listener = () => void
@@ -51,6 +53,12 @@ export class Tab {
    * to null once the content has been pushed into TipTap.
    */
   pendingContent: string | null = null
+  /**
+   * History depth at the last "saved" point: load or successful write. The
+   * dirty flag is derived from `undoDepth(editor.state) !== savedAtDepth`, so
+   * undoing back to this depth correctly reports a clean tab.
+   */
+  savedAtDepth = 0
   private listeners: Set<Listener> = new Set()
 
   constructor(
@@ -86,6 +94,27 @@ export class Tab {
   setModified(value: boolean): void {
     this.modified = value
     this.notify()
+  }
+
+  /** Called after loading content from disk (or creating an empty tab). Clears
+   * editor history so the load isn't undoable, baselines the dirty tracker. */
+  markLoaded(): void {
+    clearEditorHistory(this.editor)
+    this.savedAtDepth = 0
+    this.setModified(false)
+  }
+
+  /** Called after a successful write to disk. Pins the current history depth
+   * as the new clean baseline; undoing back to it reports clean again. */
+  markSaved(): void {
+    this.savedAtDepth = undoDepth(this.editor.state)
+    this.setModified(false)
+  }
+
+  /** True when the editor's current history depth matches the last save/load —
+   * i.e. the user has either made no edits or has undone back to that point. */
+  isAtSavedState(): boolean {
+    return undoDepth(this.editor.state) === this.savedAtDepth
   }
 
   onChange(fn: Listener): () => void {

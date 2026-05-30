@@ -65,6 +65,21 @@ export function mountCodeBlockLangPicker(editor: Editor): LangPickerHandle {
   let selectedIndex = 0
   let filtered: LanguageOption[] = LANGUAGE_OPTIONS
   let positionRaf: number | null = null
+  let scrollRegion: HTMLElement | null = null
+
+  // Nearest scrollable ancestor of the editor — its top edge is where the app
+  // chrome (toolbar/tab strip) ends, so the picker must never ride above it.
+  const findScrollRegion = (): HTMLElement | null => {
+    if (scrollRegion && scrollRegion.isConnected) return scrollRegion
+    let p: HTMLElement | null = editor.view.dom.parentElement
+    while (p) {
+      const oy = getComputedStyle(p).overflowY
+      if (oy === 'auto' || oy === 'scroll') break
+      p = p.parentElement
+    }
+    scrollRegion = p
+    return p
+  }
 
   const setLanguage = (lang: string): void => {
     if (!currentBlock) return
@@ -215,8 +230,18 @@ export function mountCodeBlockLangPicker(editor: Editor): LangPickerHandle {
       root.style.display = 'none'
       return
     }
+    const region = findScrollRegion()
+    const rr = region ? region.getBoundingClientRect() : null
+    const regionTop = rr ? rr.top : 0
+    const regionBottom = rr ? rr.bottom : window.innerHeight
+    // Hide once the code block has scrolled out of the visible content region,
+    // and clamp the picker to that region's top so it never paints over chrome.
+    if (rect.bottom <= regionTop || rect.top >= regionBottom) {
+      root.style.display = 'none'
+      return
+    }
     root.style.display = 'block'
-    root.style.top = `${Math.max(8, rect.top + 8)}px`
+    root.style.top = `${Math.max(regionTop + 8, rect.top + 8)}px`
     root.style.left = `${Math.max(8, rect.right - root.offsetWidth - 8)}px`
   }
 

@@ -1,5 +1,6 @@
 import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
+import Document from '@tiptap/extension-document'
 import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -14,13 +15,16 @@ import { Markdown } from 'tiptap-markdown'
 import { EnhancedCodeBlock } from './extensions/CodeBlock'
 import { lowlight } from './extensions/lowlight'
 import { MathInline, MathBlock } from './extensions/Math'
-import { HybridReveal } from './extensions/hybrid/HybridReveal'
+import { SourceBlock } from './extensions/SourceBlock'
+import { LinkOpen } from './extensions/LinkOpen'
+import { convertToWysiwyg } from './mode'
 import { HeadingCycle } from './extensions/HeadingCycle'
 import { SlashMenu } from './extensions/slash/SlashMenu'
 import { TreeDropHandler } from './extensions/treeDropHandler'
 import './extensions/task-list.css'
 import './extensions/table.css'
 import { bubbleMenuShouldShow } from '../ui/bubbleMenu'
+import { prefs } from '../app/preferences'
 import './editor.css'
 
 export interface CreateEditorOptions {
@@ -37,12 +41,24 @@ export interface CreateEditorOptions {
   getSourcePath?: () => string | null
 }
 
+// One schema serves both render modes. `sourceBlock` is listed first in the
+// doc's content so it's the ContentMatch default (empty docs / refills are
+// source blocks — the common hybrid case), while any block is still accepted in
+// any position. Nested containers (list items, table cells, blockquotes) keep
+// paragraphs. WYSIWYG mode simply doesn't use source blocks (the initial doc is
+// converted to paragraphs and loads route to plain parsing).
+const HybridDocument = Document.extend({ content: '(sourceBlock | block)+' })
+
 export function createEditor(opts: CreateEditorOptions): Editor {
-  return new Editor({
+  // "source" is a view overlay (ViewController), not a schema; its editor
+  // renders as hybrid underneath.
+  const initialRender = prefs().editorMode === 'wysiwyg' ? 'wysiwyg' : 'hybrid'
+  const editor = new Editor({
     element: opts.element,
     autofocus: 'start',
     extensions: [
-      StarterKit.configure({ codeBlock: false }),
+      StarterKit.configure({ codeBlock: false, document: false }),
+      HybridDocument,
       EnhancedCodeBlock.configure({ lowlight, defaultLanguage: null }),
       TaskList,
       TaskItem.configure({ nested: true }),
@@ -52,13 +68,14 @@ export function createEditor(opts: CreateEditorOptions): Editor {
       AlignedTableCell,
       MathInline,
       MathBlock,
-      HybridReveal,
+      SourceBlock,
       HeadingCycle,
       SlashMenu,
       TreeDropHandler.configure({
         getSourcePath: opts.getSourcePath ?? (() => null),
       }),
       Link.configure({ openOnClick: false }),
+      LinkOpen,
       Image,
       Placeholder.configure({ placeholder: "Type '/' for commands…" }),
       CharacterCount,
@@ -80,4 +97,9 @@ export function createEditor(opts: CreateEditorOptions): Editor {
     onUpdate: opts.onUpdate,
     onSelectionUpdate: opts.onSelectionUpdate,
   })
+  // The empty doc starts as a source block (schema default); in WYSIWYG mode
+  // convert it to a paragraph so typing/formatting behaves as pure TipTap. This
+  // is the baseline representation, so it's not its own undo step.
+  if (initialRender === 'wysiwyg') convertToWysiwyg(editor, false)
+  return editor
 }

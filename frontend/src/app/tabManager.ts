@@ -1,6 +1,7 @@
 import { createEditor } from '../editor/createEditor'
 import { Tab, type TabDom } from './tab'
 import { createViewController } from './viewMode'
+import { prefs } from './preferences'
 
 type Listener = () => void
 
@@ -108,7 +109,7 @@ export class TabManager {
       onUpdate: () => {
         const t = this.findById(id)
         if (!t) return
-        t.setModified(true)
+        t.setModified(!t.isAtSavedState())
         this.onAfterTabContentChange()
       },
       onSelectionUpdate: () => this.onAfterSelectionUpdate(),
@@ -121,6 +122,7 @@ export class TabManager {
       editor,
       hybridContainer: dom.hybridContainer,
       sourceParent: dom.sourceParent,
+      initialMode: prefs().editorMode,
     })
     tab.viewController.onContentChange(() => {
       tab.setModified(true)
@@ -146,7 +148,7 @@ export class TabManager {
 
     if (opts.content !== undefined) {
       tab.loadMarkdown(opts.content)
-      tab.setModified(false)
+      tab.markLoaded()
     }
 
     this.setActive(id)
@@ -207,7 +209,7 @@ export class TabManager {
     const content = tab.pendingContent
     tab.pendingContent = null
     tab.loadMarkdown(content)
-    tab.setModified(false)
+    tab.markLoaded()
   }
 
   onChange(fn: Listener): () => void {

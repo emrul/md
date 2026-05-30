@@ -4,8 +4,8 @@ set -e
 # Build configuration
 APP_NAME="MarkdownMD"
 BUNDLE_ID="com.mycompany.myproduct"
-VERSION="0.0.1"
-BUILD_NUMBER="0.0.1"
+VERSION="0.2.1"
+BUILD_NUMBER="0.2.1"
 BUILD_DIR="build/ios"
 TARGET="simulator"
 

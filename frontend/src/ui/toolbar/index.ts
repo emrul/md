@@ -1,5 +1,7 @@
 import type { Editor } from '@tiptap/core'
 import type { TabManager } from '../../app/tabManager'
+import type { ViewMode } from '../../app/viewMode'
+import { updatePreference } from '../../app/preferences'
 import { commands } from '../../commands/registry'
 import './toolbar.css'
 
@@ -17,9 +19,16 @@ const I_LINK = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
 const I_IMAGE = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2ZM5 5h14v8.59l-2.29-2.3a1 1 0 0 0-1.42 0L11 15.59l-1.79-1.8a1 1 0 0 0-1.42 0L5 16.59V5Zm0 14v-1.41l4-4 4.59 4.59A1 1 0 0 0 14 18l2-2 3 3v.41H5Zm10-9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/></svg>`
 const I_UNDO = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M9.70711 3.70711C10.0976 3.31658 10.0976 2.68342 9.70711 2.29289C9.31658 1.90237 8.68342 1.90237 8.29289 2.29289L3.29289 7.29289C2.90237 7.68342 2.90237 8.31658 3.29289 8.70711L8.29289 13.7071C8.68342 14.0976 9.31658 14.0976 9.70711 13.7071C10.0976 13.3166 10.0976 12.6834 9.70711 12.2929L6.41421 9H14.5C15.0909 9 15.6761 9.1164 16.2221 9.34254C16.768 9.56869 17.2641 9.90016 17.682 10.318C18.0998 10.7359 18.4313 11.232 18.6575 11.7779C18.8836 12.3239 19 12.9091 19 13.5C19 14.0909 18.8836 14.6761 18.6575 15.2221C18.4313 15.768 18.0998 16.2641 17.682 16.682C17.2641 17.0998 16.768 17.4313 16.2221 17.6575C15.6761 17.8836 15.0909 18 14.5 18H11C10.4477 18 10 18.4477 10 19C10 19.5523 10.4477 20 11 20H14.5C15.3536 20 16.1988 19.8319 16.9874 19.5052C17.7761 19.1786 18.4926 18.6998 19.0962 18.0962C19.6998 17.4926 20.1786 16.7761 20.5052 15.9874C20.8319 15.1988 21 14.3536 21 13.5C21 12.6464 20.8319 11.8012 20.5052 11.0126C20.1786 10.2239 19.6998 9.50739 19.0962 8.90381C18.4926 8.30022 17.7761 7.82144 16.9874 7.49478C16.1988 7.16813 15.3536 7 14.5 7H6.41421L9.70711 3.70711Z"/></svg>`
 const I_REDO = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M15.7071 2.29289C15.3166 1.90237 14.6834 1.90237 14.2929 2.29289C13.9024 2.68342 13.9024 3.31658 14.2929 3.70711L17.5858 7H9.5C7.77609 7 6.12279 7.68482 4.90381 8.90381C3.68482 10.1228 3 11.7761 3 13.5C3 14.3536 3.16813 15.1988 3.49478 15.9874C3.82144 16.7761 4.30023 17.4926 4.90381 18.0962C6.12279 19.3152 7.77609 20 9.5 20H13C13.5523 20 14 19.5523 14 19C14 18.4477 13.5523 18 13 18H9.5C8.30653 18 7.16193 17.5259 6.31802 16.682C5.90016 16.2641 5.56869 15.768 5.34254 15.2221C5.1164 14.6761 5 14.0909 5 13.5C5 12.3065 5.47411 11.1619 6.31802 10.318C7.16193 9.47411 8.30653 9 9.5 9H17.5858L14.2929 12.2929C13.9024 12.6834 13.9024 13.3166 14.2929 13.7071C14.6834 14.0976 15.3166 14.0976 15.7071 13.7071L20.7071 8.70711C21.0976 8.31658 21.0976 7.68342 20.7071 7.29289L15.7071 2.29289Z"/></svg>`
-const I_SOURCE = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.97 3l1.95.42-3.95 18-1.95-.42 3.95-18ZM6.7 6.3a1 1 0 0 1 1.4 1.4L4.4 11.5l3.7 3.8a1 1 0 1 1-1.4 1.4l-4.4-4.4a1 1 0 0 1 0-1.42l4.4-4.4Zm10.6 0a1 1 0 0 0-1.4 1.4l3.7 3.8-3.7 3.8a1 1 0 1 0 1.4 1.4l4.4-4.4a1 1 0 0 0 0-1.42l-4.4-4.4Z"/></svg>`
 const I_TASK = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M10 6a1 1 0 0 1 1-1h10a1 1 0 1 1 0 2H11a1 1 0 0 1-1-1Zm0 6a1 1 0 0 1 1-1h10a1 1 0 1 1 0 2H11a1 1 0 0 1-1-1Zm0 6a1 1 0 0 1 1-1h10a1 1 0 1 1 0 2H11a1 1 0 0 1-1-1ZM7.7 4.3a1 1 0 0 1 0 1.4l-3 3a1 1 0 0 1-1.4 0l-1.5-1.5a1 1 0 1 1 1.4-1.4l.8.79 2.3-2.3a1 1 0 0 1 1.4 0Zm0 6a1 1 0 0 1 0 1.4l-3 3a1 1 0 0 1-1.4 0l-1.5-1.5a1 1 0 1 1 1.4-1.4l.8.79 2.3-2.3a1 1 0 0 1 1.4 0Zm0 6a1 1 0 0 1 0 1.4l-3 3a1 1 0 0 1-1.4 0l-1.5-1.5a1 1 0 1 1 1.4-1.4l.8.79 2.3-2.3a1 1 0 0 1 1.4 0Z"/></svg>`
 const I_CHEVRON = `<svg class="tb-chevron" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M5.3 8.3a1 1 0 0 1 1.4 0l5.3 5.3 5.3-5.3a1 1 0 1 1 1.4 1.4l-6 6a1 1 0 0 1-1.4 0l-6-6a1 1 0 0 1 0-1.4Z"/></svg>`
+
+// Mode-dropdown icons: WYSIWYG = page with a heading + body lines (page
+// boundary distinguishes it from text-align icons; the thick first line reads
+// as a rendered heading); Hybrid = split rectangle (universal "live preview");
+// Source = stroke </> (distinct from the filled inline-code icon I_CODE).
+const I_MODE_WYSIWYG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2" stroke-width="1.8"/><line x1="7" y1="9" x2="14" y2="9" stroke-width="2.5"/><line x1="7" y1="14" x2="17" y2="14" stroke-width="1.5"/><line x1="7" y1="18" x2="15" y2="18" stroke-width="1.5"/></svg>`
+const I_MODE_HYBRID = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><line x1="12" y1="5" x2="12" y2="19"/><line x1="5.5" y1="9.5" x2="10" y2="9.5"/><line x1="5.5" y1="14.5" x2="9" y2="14.5"/><line x1="14" y1="9.5" x2="18.5" y2="9.5"/><line x1="14" y1="14.5" x2="17" y2="14.5"/></svg>`
+const I_MODE_SOURCE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 7 4 12 9 17"/><polyline points="15 7 20 12 15 17"/></svg>`
 
 interface ButtonDef {
   command: string
@@ -44,14 +53,48 @@ interface DropdownDef {
   formatting: boolean
 }
 
-type Entry = { kind: 'button'; def: ButtonDef } | { kind: 'dropdown'; def: DropdownDef }
+type Entry =
+  | { kind: 'button'; def: ButtonDef }
+  | { kind: 'dropdown'; def: DropdownDef }
+  | { kind: 'modeDropdown' }
+
+const MODE_OPTIONS: { mode: ViewMode; label: string; icon: string }[] = [
+  { mode: 'wysiwyg', label: 'WYSIWYG', icon: I_MODE_WYSIWYG },
+  { mode: 'hybrid', label: 'Hybrid', icon: I_MODE_HYBRID },
+  { mode: 'source', label: 'Source', icon: I_MODE_SOURCE },
+]
+
+function modeLabel(mode: ViewMode | null): string {
+  return MODE_OPTIONS.find((o) => o.mode === mode)?.label ?? 'Hybrid'
+}
+function modeIcon(mode: ViewMode | null): string {
+  return MODE_OPTIONS.find((o) => o.mode === mode)?.icon ?? I_MODE_HYBRID
+}
+function modeTriggerLabel(mode: ViewMode | null): string {
+  return `Editor mode: ${modeLabel(mode)}`
+}
+
+// Effective block kind that recognizes both WYSIWYG heading/paragraph nodes
+// AND source blocks (hybrid: a leading "#{level} " is what makes it a heading).
+// Used by the heading dropdown's label + per-item active state so they reflect
+// hybrid mode correctly.
+type BlockKind = { type: 'paragraph' } | { type: 'heading'; level: number }
+function currentBlockKind(editor: Editor | null): BlockKind | null {
+  if (!editor) return null
+  const parent = editor.state.selection.$from.parent
+  const name = parent.type.name
+  if (name === 'heading') return { type: 'heading', level: (parent.attrs.level as number) ?? 1 }
+  if (name === 'paragraph') return { type: 'paragraph' }
+  if (name === 'sourceBlock') {
+    const m = /^(#{1,6}) /.exec(parent.textContent)
+    return m ? { type: 'heading', level: m[1].length } : { type: 'paragraph' }
+  }
+  return null
+}
 
 function headingLabel(editor: Editor | null): string {
-  if (editor) {
-    for (const lvl of [1, 2, 3]) {
-      if (editor.isActive('heading', { level: lvl })) return `H${lvl}`
-    }
-  }
+  const kind = currentBlockKind(editor)
+  if (kind?.type === 'heading') return `H${kind.level}`
   return '¶'
 }
 
@@ -68,19 +111,80 @@ const GROUPS: Entry[][] = [
         triggerContent: (e) => `<span class="tb-dd-label">${headingLabel(e)}</span>${I_CHEVRON}`,
         formatting: true,
         items: [
-          { label: 'Paragraph', command: 'format.paragraph', isActive: (e) => e.isActive('paragraph') },
-          { label: 'Heading 1', command: 'format.heading1', isActive: (e) => e.isActive('heading', { level: 1 }) },
-          { label: 'Heading 2', command: 'format.heading2', isActive: (e) => e.isActive('heading', { level: 2 }) },
-          { label: 'Heading 3', command: 'format.heading3', isActive: (e) => e.isActive('heading', { level: 3 }) },
+          {
+            label: 'Paragraph',
+            command: 'format.paragraph',
+            isActive: (e) => currentBlockKind(e)?.type === 'paragraph',
+          },
+          {
+            label: 'Heading 1',
+            command: 'format.heading1',
+            isActive: (e) => {
+              const k = currentBlockKind(e)
+              return k?.type === 'heading' && k.level === 1
+            },
+          },
+          {
+            label: 'Heading 2',
+            command: 'format.heading2',
+            isActive: (e) => {
+              const k = currentBlockKind(e)
+              return k?.type === 'heading' && k.level === 2
+            },
+          },
+          {
+            label: 'Heading 3',
+            command: 'format.heading3',
+            isActive: (e) => {
+              const k = currentBlockKind(e)
+              return k?.type === 'heading' && k.level === 3
+            },
+          },
         ],
       },
     },
   ],
   [
-    { kind: 'button', def: { command: 'format.bold', content: I_BOLD, label: 'Bold (⌘B)', isActive: (e) => e.isActive('bold'), formatting: true } },
-    { kind: 'button', def: { command: 'format.italic', content: I_ITALIC, label: 'Italic (⌘I)', isActive: (e) => e.isActive('italic'), formatting: true } },
-    { kind: 'button', def: { command: 'format.strike', content: I_STRIKE, label: 'Strikethrough', isActive: (e) => e.isActive('strike'), formatting: true } },
-    { kind: 'button', def: { command: 'format.code', content: I_CODE, label: 'Inline code (⌘E)', isActive: (e) => e.isActive('code'), formatting: true } },
+    {
+      kind: 'button',
+      def: {
+        command: 'format.bold',
+        content: I_BOLD,
+        label: 'Bold (⌘B)',
+        isActive: (e) => e.isActive('bold'),
+        formatting: true,
+      },
+    },
+    {
+      kind: 'button',
+      def: {
+        command: 'format.italic',
+        content: I_ITALIC,
+        label: 'Italic (⌘I)',
+        isActive: (e) => e.isActive('italic'),
+        formatting: true,
+      },
+    },
+    {
+      kind: 'button',
+      def: {
+        command: 'format.strike',
+        content: I_STRIKE,
+        label: 'Strikethrough',
+        isActive: (e) => e.isActive('strike'),
+        formatting: true,
+      },
+    },
+    {
+      kind: 'button',
+      def: {
+        command: 'format.code',
+        content: I_CODE,
+        label: 'Inline code (⌘E)',
+        isActive: (e) => e.isActive('code'),
+        formatting: true,
+      },
+    },
   ],
   [
     {
@@ -90,23 +194,67 @@ const GROUPS: Entry[][] = [
         triggerContent: () => `${I_BULLET}${I_CHEVRON}`,
         formatting: true,
         items: [
-          { label: 'Bullet List', command: 'format.bulletList', isActive: (e) => e.isActive('bulletList') },
-          { label: 'Ordered List', command: 'format.orderedList', isActive: (e) => e.isActive('orderedList') },
-          { label: 'Task List', command: 'format.taskList', isActive: (e) => e.isActive('taskList') },
+          {
+            label: 'Bullet List',
+            command: 'format.bulletList',
+            isActive: (e) => e.isActive('bulletList'),
+          },
+          {
+            label: 'Ordered List',
+            command: 'format.orderedList',
+            isActive: (e) => e.isActive('orderedList'),
+          },
+          {
+            label: 'Task List',
+            command: 'format.taskList',
+            isActive: (e) => e.isActive('taskList'),
+          },
         ],
       },
     },
   ],
   [
-    { kind: 'button', def: { command: 'format.blockquote', content: I_QUOTE, label: 'Blockquote', isActive: (e) => e.isActive('blockquote'), formatting: true } },
-    { kind: 'button', def: { command: 'format.codeBlock', content: I_CODEBLOCK, label: 'Code block', isActive: (e) => e.isActive('codeBlock'), formatting: true } },
-    { kind: 'button', def: { command: 'format.horizontalRule', content: I_HR, label: 'Horizontal rule', formatting: true } },
+    {
+      kind: 'button',
+      def: {
+        command: 'format.blockquote',
+        content: I_QUOTE,
+        label: 'Blockquote',
+        isActive: (e) => e.isActive('blockquote'),
+        formatting: true,
+      },
+    },
+    {
+      kind: 'button',
+      def: {
+        command: 'format.codeBlock',
+        content: I_CODEBLOCK,
+        label: 'Code block',
+        isActive: (e) => e.isActive('codeBlock'),
+        formatting: true,
+      },
+    },
+    {
+      kind: 'button',
+      def: {
+        command: 'format.horizontalRule',
+        content: I_HR,
+        label: 'Horizontal rule',
+        formatting: true,
+      },
+    },
   ],
   [
-    { kind: 'button', def: { command: 'insert.link', content: I_LINK, label: 'Insert link (⌘K)', formatting: true } },
-    { kind: 'button', def: { command: 'insert.image', content: I_IMAGE, label: 'Insert image', formatting: true } },
+    {
+      kind: 'button',
+      def: { command: 'insert.link', content: I_LINK, label: 'Insert link (⌘K)', formatting: true },
+    },
+    {
+      kind: 'button',
+      def: { command: 'insert.image', content: I_IMAGE, label: 'Insert image', formatting: true },
+    },
   ],
-  [{ kind: 'button', def: { command: 'view.toggleSource', content: I_SOURCE, label: 'Toggle source view (⌘/)' } }],
+  [{ kind: 'modeDropdown' }],
 ]
 
 // Item icons for the list dropdown menu rows (heading rows are text-only).
@@ -123,6 +271,7 @@ export function mountToolbar(tm: TabManager): { refresh: () => void } {
 
   const buttonRecords: { el: HTMLButtonElement; def: ButtonDef }[] = []
   const dropdownRecords: { trigger: HTMLButtonElement; def: DropdownDef }[] = []
+  const modeRecords: { trigger: HTMLButtonElement }[] = []
 
   // --- Single open-menu manager (only one dropdown open at a time) ---
   let openMenu: HTMLElement | null = null
@@ -176,6 +325,43 @@ export function mountToolbar(tm: TabManager): { refresh: () => void } {
     trigger.setAttribute('aria-expanded', 'true')
   }
 
+  // The editor-mode selector (WYSIWYG / Hybrid / Source). Switching applies to
+  // the active tab immediately and persists as the default for new tabs/windows.
+  function openModeMenu(trigger: HTMLButtonElement): void {
+    closeMenu()
+    const tab = tm.active()
+    const current = tab?.viewController?.mode ?? null
+    const menu = document.createElement('div')
+    menu.className = 'tb-menu'
+    menu.setAttribute('role', 'menu')
+
+    for (const opt of MODE_OPTIONS) {
+      const row = document.createElement('button')
+      row.type = 'button'
+      row.className = 'tb-menu-item'
+      row.setAttribute('role', 'menuitemradio')
+      const active = current === opt.mode
+      row.classList.toggle('is-active', active)
+      row.setAttribute('aria-checked', String(active))
+      row.innerHTML = `<span class="tb-menu-icon">${opt.icon}</span><span class="tb-menu-label">${opt.label}</span>`
+      row.addEventListener('click', () => {
+        closeMenu()
+        updatePreference('editorMode', opt.mode)
+        tm.active()?.viewController?.setMode(opt.mode)
+      })
+      menu.appendChild(row)
+    }
+
+    document.body.appendChild(menu)
+    const r = trigger.getBoundingClientRect()
+    menu.style.top = `${r.bottom + 4}px`
+    menu.style.left = `${r.left}px`
+    openMenu = menu
+    openTrigger = trigger
+    trigger.classList.add('is-open')
+    trigger.setAttribute('aria-expanded', 'true')
+  }
+
   function makeSep(): HTMLElement {
     const el = document.createElement('div')
     el.className = 'tb-sep'
@@ -187,7 +373,24 @@ export function mountToolbar(tm: TabManager): { refresh: () => void } {
   GROUPS.forEach((group, gi) => {
     if (gi > 0) root.appendChild(makeSep())
     for (const entry of group) {
-      if (entry.kind === 'button') {
+      if (entry.kind === 'modeDropdown') {
+        const trigger = document.createElement('button')
+        trigger.type = 'button'
+        trigger.className = 'tb tb-dropdown tb-mode'
+        const initialLabel = modeTriggerLabel(null)
+        trigger.title = initialLabel
+        trigger.setAttribute('aria-label', initialLabel)
+        trigger.setAttribute('aria-haspopup', 'menu')
+        trigger.setAttribute('aria-expanded', 'false')
+        trigger.innerHTML = `${modeIcon(null)}${I_CHEVRON}`
+        trigger.addEventListener('click', (ev) => {
+          ev.stopPropagation()
+          if (openTrigger === trigger) closeMenu()
+          else openModeMenu(trigger)
+        })
+        root.appendChild(trigger)
+        modeRecords.push({ trigger })
+      } else if (entry.kind === 'button') {
         const def = entry.def
         const el = document.createElement('button')
         el.type = 'button'
@@ -260,9 +463,17 @@ export function mountToolbar(tm: TabManager): { refresh: () => void } {
       // Refresh trigger content (heading level reflects active block).
       trigger.innerHTML = def.triggerContent(isSource ? null : editor)
       // Mark the trigger active if any of its items is active.
-      const anyActive =
-        !!editor && !isSource && def.items.some((i) => i.isActive?.(editor))
+      const anyActive = !!editor && !isSource && def.items.some((i) => i.isActive?.(editor))
       trigger.classList.toggle('is-active', anyActive)
+    }
+
+    const mode = tab?.viewController?.mode ?? null
+    for (const { trigger } of modeRecords) {
+      trigger.classList.toggle('is-disabled', !tab)
+      trigger.innerHTML = `${modeIcon(mode)}${I_CHEVRON}`
+      const label = modeTriggerLabel(mode)
+      trigger.title = label
+      trigger.setAttribute('aria-label', label)
     }
   }
 

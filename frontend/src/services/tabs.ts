@@ -173,12 +173,12 @@ export async function ensureTabSaved(tab: Tab): Promise<boolean> {
     if (!path) return false
     await WriteFile(path, tab.getCurrentMarkdown())
     tab.setFilePath(path)
-    tab.setModified(false)
+    tab.markSaved()
     return true
   }
   if (tab.modified) {
     await WriteFile(tab.filePath, tab.getCurrentMarkdown())
-    tab.setModified(false)
+    tab.markSaved()
   }
   return true
 }

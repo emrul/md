@@ -49,26 +49,36 @@ export function mountToc(
   let boundScrollEl: HTMLElement | null = null
   let rafPending = false
 
-  const isSourceMode = (tab: Tab): boolean =>
-    tab.viewController?.mode === 'source'
+  const isSourceMode = (tab: Tab): boolean => tab.viewController?.mode === 'source'
+
+  // WYSIWYG headings render as <h1>..<h6>; hybrid headings are source blocks
+  // styled with an sb-h{level} class. Collect both, in document order.
+  const HEADING_SELECTOR = [
+    'h1, h2, h3, h4, h5, h6',
+    ...[1, 2, 3, 4, 5, 6].map((n) => `.source-block.sb-h${n}`),
+  ].join(', ')
+
+  function headingLevel(el: HTMLElement): number {
+    const tag = el.tagName.toLowerCase()
+    if (/^h[1-6]$/.test(tag)) return Number(tag.slice(1))
+    const m = el.className.match(/\bsb-h([1-6])\b/)
+    return m ? Number(m[1]) : 1
+  }
 
   function collectHeadings(tab: Tab): HeadingEntry[] {
-    const nodes = tab.dom.editorElement.querySelectorAll<HTMLElement>(
-      'h1, h2, h3, h4, h5, h6',
-    )
+    const nodes = tab.dom.editorElement.querySelectorAll<HTMLElement>(HEADING_SELECTOR)
     const list: HeadingEntry[] = []
     nodes.forEach((el) => {
-      list.push({ el, level: Number(el.tagName.slice(1)), text: headingText(el) })
+      list.push({ el, level: headingLevel(el), text: headingText(el) })
     })
     return list
   }
 
-  // The hybrid live-preview injects markdown markers ("# ", "**", etc.) as
-  // .hybrid-marker widget spans inside a heading while the caret is on it.
-  // Strip them so the outline shows the clean heading text, not the markup.
+  // Hybrid headings carry markdown markers ("# ", "**", …) as .sb-marker spans;
+  // strip them so the outline shows clean heading text, not the markup.
   function headingText(el: HTMLElement): string {
     const clone = el.cloneNode(true) as HTMLElement
-    clone.querySelectorAll('.hybrid-marker').forEach((m) => m.remove())
+    clone.querySelectorAll('.sb-marker').forEach((m) => m.remove())
     return (clone.textContent ?? '').replace(/\s+/g, ' ').trim()
   }
 
@@ -78,12 +88,9 @@ export function mountToc(
   // live rather than hard-coding the layout constants.
   function positionButton(): void {
     const tab = tm.active()
-    const content = tab?.dom.editorElement.querySelector<HTMLElement>(
-      '.ProseMirror',
-    )
+    const content = tab?.dom.editorElement.querySelector<HTMLElement>('.ProseMirror')
     if (!content) return
-    const contentLeft =
-      content.getBoundingClientRect().left - host.getBoundingClientRect().left
+    const contentLeft = content.getBoundingClientRect().left - host.getBoundingClientRect().left
     const left = Math.max(8, Math.round(contentLeft - BUTTON_GAP - BUTTON_SIZE))
     button.style.left = `${left}px`
     panel.style.left = `${left}px`
@@ -108,9 +115,7 @@ export function mountToc(
   function scrollToEntry(entry: HeadingEntry): void {
     const scrollEl = tm.active()?.dom.hybridContainer
     if (!scrollEl) return
-    const offset =
-      entry.el.getBoundingClientRect().top -
-      scrollEl.getBoundingClientRect().top
+    const offset = entry.el.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top
     const target = scrollEl.scrollTop + offset - 24
     scrollEl.scrollTo({ top: Math.max(0, target), behavior: 'smooth' })
   }
@@ -200,9 +205,7 @@ export function mountToc(
       return
     }
     entries = collectHeadings(tab)
-    const scrollable = scrollEl
-      ? scrollEl.scrollHeight > scrollEl.clientHeight + 4
-      : false
+    const scrollable = scrollEl ? scrollEl.scrollHeight > scrollEl.clientHeight + 4 : false
     if (!scrollable || entries.length < MIN_HEADINGS) {
       hide()
       return

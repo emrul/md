@@ -6,9 +6,14 @@ import {
 } from '../../bindings/markdownmd/app/preferencesservice.js'
 import { Preferences as PrefsModel } from '../../bindings/markdownmd/app/models.js'
 
+// 'source' opens new tabs straight into the raw-markdown view (over a hybrid
+// editor underneath); 'wysiwyg'/'hybrid' pick the editor's render mode.
+export type EditorMode = 'wysiwyg' | 'hybrid' | 'source'
+
 export interface Preferences {
   useTabs: boolean
   showDotFolders: boolean
+  editorMode: EditorMode
   pinnedRoots: string[]
   recentRoots: string[]
 }
@@ -16,6 +21,7 @@ export interface Preferences {
 const defaults: Preferences = {
   useTabs: true,
   showDotFolders: false,
+  editorMode: 'hybrid',
   pinnedRoots: [],
   recentRoots: [],
 }
@@ -43,6 +49,10 @@ function fromWire(p: PrefsModel): Preferences {
     useTabs: typeof p.useTabs === 'boolean' ? p.useTabs : defaults.useTabs,
     showDotFolders:
       typeof p.showDotFolders === 'boolean' ? p.showDotFolders : defaults.showDotFolders,
+    editorMode:
+      p.editorMode === 'wysiwyg' || p.editorMode === 'hybrid' || p.editorMode === 'source'
+        ? p.editorMode
+        : defaults.editorMode,
     pinnedRoots: Array.isArray(p.pinnedRoots) ? p.pinnedRoots : [],
     recentRoots: Array.isArray(p.recentRoots) ? p.recentRoots : [],
   }
@@ -66,6 +76,7 @@ export function updatePreference<K extends keyof Preferences>(
   const onWire = new PrefsModel({
     useTabs: cached.useTabs,
     showDotFolders: cached.showDotFolders,
+    editorMode: cached.editorMode,
     pinnedRoots: cached.pinnedRoots,
     recentRoots: cached.recentRoots,
   })

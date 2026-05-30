@@ -1,3 +1,12 @@
+// DEPRECATED — retired 2026-05-29, no longer wired into createEditor.
+//
+// This widget-decoration reveal was the source of the caret/backspace/jump
+// issues (markdown markers rendered as phantom widgets, not real text — see
+// docs/KNOWN_ISSUES.md). It is replaced by the source-block decoration model
+// (extensions/SourceBlock.ts), where the markup is real editable text. Kept
+// only for reference. SAFE TO DELETE once the source-block hybrid is wired in
+// for paragraphs/headings.
+
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import type { EditorState, Transaction } from '@tiptap/pm/state'

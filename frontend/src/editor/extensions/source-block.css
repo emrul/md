@@ -1,0 +1,72 @@
+/* SPIKE: single-layer source block styled with inline decorations. */
+.source-block {
+  margin: 0.5rem 0;
+  line-height: 1.7;
+  color: var(--text);
+  caret-color: var(--text);
+}
+
+/* Inner-content styling (applied in both idle and active states). */
+.sb-bold {
+  font-weight: 700;
+}
+.sb-italic {
+  font-style: italic;
+}
+.sb-strike {
+  text-decoration: line-through;
+}
+.sb-code {
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: var(--btn-hover);
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+}
+.sb-link {
+  color: var(--link);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.sb-math-rendered {
+  cursor: text;
+}
+.sb-math-rendered.sb-math-error {
+  color: var(--danger, #d33);
+  font-family: 'SF Mono', 'Fira Mono', Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+/* Markdown markers: dimmed when the caret is in the block, hidden otherwise. */
+.sb-marker {
+  color: var(--muted);
+  opacity: 0.5;
+}
+.sb-hidden {
+  display: none;
+}
+
+/* Heading-level blocks (leading "#{1,6} "). */
+.source-block.sb-h1 {
+  font-size: 1.9em;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.source-block.sb-h2 {
+  font-size: 1.55em;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.source-block.sb-h3 {
+  font-size: 1.3em;
+  font-weight: 600;
+}
+.source-block.sb-h4 {
+  font-size: 1.13em;
+  font-weight: 600;
+}
+.source-block.sb-h5,
+.source-block.sb-h6 {
+  font-size: 1em;
+  font-weight: 600;
+}

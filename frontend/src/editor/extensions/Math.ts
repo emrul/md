@@ -29,7 +29,10 @@ function renderKatex(latex: string, displayMode: boolean, target: HTMLElement): 
   const requestedLatex = latex
   void getKatex().then((k) => {
     // Bail if the target was already updated for a newer latex value.
-    if (target.dataset.lastLatex === requestedLatex && target.dataset.lastMode === String(displayMode)) {
+    if (
+      target.dataset.lastLatex === requestedLatex &&
+      target.dataset.lastMode === String(displayMode)
+    ) {
       return
     }
     target.dataset.lastLatex = requestedLatex
@@ -49,9 +52,45 @@ function renderKatex(latex: string, displayMode: boolean, target: HTMLElement): 
   })
 }
 
+// Rendered-HTML cache so repeated decoration recomputes don't re-run KaTeX for
+// the same expression. KaTeX output is deterministic per latex string.
+const inlineMathCache = new Map<string, string>()
+
+// A span with `latex` rendered inline by KaTeX. Used as a widget decoration in
+// source blocks (hybrid mode), where math is raw text rather than a node.
+export function renderInlineMath(latex: string): HTMLElement {
+  const span = document.createElement('span')
+  span.className = 'sb-math-rendered'
+  const cached = inlineMathCache.get(latex)
+  if (cached !== undefined) {
+    span.innerHTML = cached
+    return span
+  }
+  span.textContent = '…'
+  void getKatex().then((k) => {
+    let html = ''
+    try {
+      html = k.renderToString(latex, { throwOnError: false, output: 'html', strict: 'ignore' })
+    } catch {
+      html = ''
+    }
+    inlineMathCache.set(latex, html)
+    if (html) {
+      span.innerHTML = html
+    } else {
+      span.textContent = `$${latex}$`
+      span.classList.add('sb-math-error')
+    }
+  })
+  return span
+}
+
 interface MathStorage {
   markdown: {
-    serialize: (state: { write: (s: string) => void; closeBlock: (n: PMNode) => void }, node: PMNode) => void
+    serialize: (
+      state: { write: (s: string) => void; closeBlock: (n: PMNode) => void },
+      node: PMNode,
+    ) => void
     parse: { setup: (md: import('markdown-it').default) => void }
   }
 }
@@ -67,7 +106,8 @@ export const MathInline = Node.create<unknown, MathStorage>({
     return {
       latex: {
         default: '',
-        parseHTML: (el) => el.getAttribute('data-math-inline') ?? el.getAttribute('data-latex') ?? '',
+        parseHTML: (el) =>
+          el.getAttribute('data-math-inline') ?? el.getAttribute('data-latex') ?? '',
         renderHTML: (attrs: { latex?: string }) => ({ 'data-math-inline': attrs.latex ?? '' }),
       },
     }
@@ -130,7 +170,8 @@ export const MathBlock = Node.create<unknown, MathStorage>({
     return {
       latex: {
         default: '',
-        parseHTML: (el) => el.getAttribute('data-math-block') ?? el.getAttribute('data-latex') ?? '',
+        parseHTML: (el) =>
+          el.getAttribute('data-math-block') ?? el.getAttribute('data-latex') ?? '',
         renderHTML: (attrs: { latex?: string }) => ({ 'data-math-block': attrs.latex ?? '' }),
       },
     }
@@ -280,7 +321,11 @@ function buildMathNodeView(args: MathNodeViewArgs): {
       exitEdit(true)
       const pos = getPos()
       if (typeof pos === 'number') {
-        editor.chain().focus().setTextSelection(pos + 1).run()
+        editor
+          .chain()
+          .focus()
+          .setTextSelection(pos + 1)
+          .run()
       }
     } else if (e.key === 'Enter' && displayMode && (e.metaKey || e.ctrlKey)) {
       e.preventDefault()

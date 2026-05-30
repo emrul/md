@@ -8,27 +8,44 @@ export interface SlashItem {
   apply: (editor: Editor, range: Range) => void
 }
 
+// In hybrid mode the caret sits inside a sourceBlock, so heading items must
+// toggle a literal "#{level} " prefix instead of creating a heading node.
+function inSourceBlock(e: Editor): boolean {
+  const { $from } = e.state.selection
+  for (let d = $from.depth; d > 0; d--) {
+    if ($from.node(d).type.name === 'sourceBlock') return true
+  }
+  return false
+}
+function applyHeading(e: Editor, r: Range, level: 1 | 2 | 3): void {
+  if (inSourceBlock(e)) {
+    e.chain().focus().deleteRange(r).toggleSourceHeading(level).run()
+  } else {
+    e.chain().focus().deleteRange(r).setNode('heading', { level }).run()
+  }
+}
+
 export const SLASH_ITEMS: SlashItem[] = [
   {
     id: 'h1',
     label: 'Heading 1',
     hint: '#',
     search: ['heading', 'h1', 'title'],
-    apply: (e, r) => e.chain().focus().deleteRange(r).setNode('heading', { level: 1 }).run(),
+    apply: (e, r) => applyHeading(e, r, 1),
   },
   {
     id: 'h2',
     label: 'Heading 2',
     hint: '##',
     search: ['heading', 'h2'],
-    apply: (e, r) => e.chain().focus().deleteRange(r).setNode('heading', { level: 2 }).run(),
+    apply: (e, r) => applyHeading(e, r, 2),
   },
   {
     id: 'h3',
     label: 'Heading 3',
     hint: '###',
     search: ['heading', 'h3'],
-    apply: (e, r) => e.chain().focus().deleteRange(r).setNode('heading', { level: 3 }).run(),
+    apply: (e, r) => applyHeading(e, r, 3),
   },
   {
     id: 'bullet',
@@ -71,12 +88,7 @@ export const SLASH_ITEMS: SlashItem[] = [
     hint: '3×2',
     search: ['table', 'grid', 'rows', 'columns'],
     apply: (e, r) =>
-      e
-        .chain()
-        .focus()
-        .deleteRange(r)
-        .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-        .run(),
+      e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
   },
   {
     id: 'mermaid',

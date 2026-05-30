@@ -23,6 +23,11 @@ type Preferences struct {
 	// dozens of them and they're rarely the markdown writer's focus.
 	// Dotfiles (regular files starting with `.`) are always hidden in M3.
 	ShowDotFolders bool `toml:"show_dotfolders" json:"showDotFolders"`
+	// EditorMode is the default mode for new tabs/windows: "wysiwyg" (pure
+	// TipTap), "hybrid" (the source-block model — markdown syntax kept literal
+	// on each block, rendered live), or "source" (raw-markdown CodeMirror view
+	// over a hybrid editor). Defaults to "hybrid".
+	EditorMode string `toml:"editor_mode" json:"editorMode"`
 	// PinnedRoots is the user's persistent set of pinned explorer roots,
 	// surfaced as the top section of the Files header dropdown. Order on
 	// disk is insertion order; the frontend sorts alpha at render time.
@@ -40,6 +45,7 @@ func defaultPreferences() Preferences {
 	return Preferences{
 		UseTabs:        true,
 		ShowDotFolders: false,
+		EditorMode:     "hybrid",
 		PinnedRoots:    []string{},
 		RecentRoots:    []string{},
 	}

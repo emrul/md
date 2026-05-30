@@ -61,7 +61,7 @@ async function loadIntoActiveOrNewTab(
 function applyToTab(tab: Tab, opts: { path: string | null; content: string }): void {
   tab.loadMarkdown(opts.content)
   tab.setFilePath(opts.path)
-  tab.setModified(false)
+  tab.markLoaded()
 }
 
 export async function newFile(tm: TabManager): Promise<void> {
@@ -182,7 +182,7 @@ export async function saveFile(tm: TabManager): Promise<void> {
   if (!tab.filePath) return saveFileAs(tm)
   try {
     await WriteFile(tab.filePath, tab.getCurrentMarkdown())
-    tab.setModified(false)
+    tab.markSaved()
   } catch (err) {
     alert('Could not save: ' + String(err))
   }
@@ -196,7 +196,7 @@ export async function saveFileAs(tm: TabManager): Promise<void> {
     if (!path) return
     tab.setFilePath(path)
     await WriteFile(path, tab.getCurrentMarkdown())
-    tab.setModified(false)
+    tab.markSaved()
   } catch (err) {
     alert('Could not save: ' + String(err))
   }
