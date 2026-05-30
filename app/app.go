@@ -64,6 +64,10 @@ func Run(opts Options) error {
 		Name:        "MarkdownMD",
 		Description: "Markdown editor",
 		Services:    services,
+		// Veto termination during the crash-restore prompt's zero-window gap so
+		// macOS doesn't quit the app before the chosen window spawns. No-op in
+		// normal use. See app/windowservice.go:appShouldQuit.
+		ShouldQuit: appShouldQuit,
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(opts.Assets),
 		},

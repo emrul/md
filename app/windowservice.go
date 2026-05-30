@@ -18,6 +18,23 @@ var sessionSvc *SessionService
 
 var winSeq uint64
 
+// restorePromptPending is true only while the crash-recovery prompt is on screen
+// and the window(s) it spawns don't exist yet. During that gap there are zero
+// windows: the button callbacks run on the main thread, so the spawn (window
+// setters InvokeSync to the main thread) must happen on a goroutine, which leaves
+// a brief zero-window instant when the dialog closes. macOS's "terminate after
+// last window closed" would quit the app in that instant — before the spawn lands
+// — which is the intermittent "restore prompt then immediately exits" bug.
+// appShouldQuit vetoes termination while this is set.
+var restorePromptPending atomic.Bool
+
+// appShouldQuit backs application.Options.ShouldQuit. It only blocks quitting
+// during the restore-prompt gap above; in all normal use it returns true, so ⌘Q
+// and closing the last window quit as usual.
+func appShouldQuit() bool {
+	return !restorePromptPending.Load()
+}
+
 // newWindowID mints a stable, process-unique window identifier used both as the
 // Wails window Name and the session key. Unlike Wails' default "window-N" name,
 // this is suitable for persisting across restarts.
@@ -178,8 +195,13 @@ func promptRestore(windows []WindowSession) {
 	fresh := dialog.AddButton("Start Fresh")
 	dialog.SetDefaultButton(restore)
 	dialog.SetCancelButton(fresh)
+	// Block termination from the moment the (window-less) prompt goes up until its
+	// chosen window(s) have spawned — see restorePromptPending. The defers clear
+	// it even if a spawn errors, so the app never gets stuck unquittable.
+	restorePromptPending.Store(true)
 	restore.OnClick(func() {
 		go func() {
+			defer restorePromptPending.Store(false)
 			for _, w := range windows {
 				spawnRestoreWindow(w)
 			}
@@ -187,6 +209,7 @@ func promptRestore(windows []WindowSession) {
 	})
 	fresh.OnClick(func() {
 		go func() {
+			defer restorePromptPending.Store(false)
 			sessionSvc.discardAll()
 			spawnEditorWindow("/")
 		}()
