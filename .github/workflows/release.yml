@@ -90,8 +90,10 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           echo "PRODUCT_VERSION=$VERSION" >> "$GITHUB_ENV"
+          # OS version resources (Windows VERSIONINFO/NSIS, macOS bundle) need a
+          # plain numeric X.Y.Z — strip any -rc/-beta prerelease suffix.
           wails3 update build-assets -name MarkdownMD -binaryname MarkdownMD \
-            -config build/config.yml -dir build -productversion "$VERSION"
+            -config build/config.yml -dir build -productversion "${VERSION%%-*}"
       - name: Package
         run: wails3 task darwin:package PRODUCT_VERSION=${{ env.PRODUCT_VERSION }}
       - name: Sign & notarize
@@ -147,14 +149,16 @@ jobs:
         run: |
           $version = "${env:GITHUB_REF_NAME}" -replace '^v', ''
           "PRODUCT_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
-          wails3 update build-assets -name MarkdownMD -binaryname MarkdownMD -config build/config.yml -dir build -productversion $version
+          # Strip any -rc/-beta suffix for the numeric Windows VERSIONINFO/NSIS resource.
+          wails3 update build-assets -name MarkdownMD -binaryname MarkdownMD -config build/config.yml -dir build -productversion ($version -replace '-.*','')
       - name: Package
         run: wails3 task windows:package PRODUCT_VERSION=${{ env.PRODUCT_VERSION }}
       - name: Collect artifacts
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist-out | Out-Null
-          Get-ChildItem build/windows/nsis/*installer*.exe | ForEach-Object {
+          # NSIS OutFile writes the installer to bin/, not the nsis dir (project.nsi).
+          Get-ChildItem bin/*installer*.exe | ForEach-Object {
             Copy-Item $_.FullName "dist-out/MarkdownMD-${env:GITHUB_REF_NAME}-windows-amd64-installer.exe"
           }
           Copy-Item bin/MarkdownMD.exe "dist-out/MarkdownMD-${env:GITHUB_REF_NAME}-windows-amd64.exe"
@@ -205,8 +209,10 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           echo "PRODUCT_VERSION=$VERSION" >> "$GITHUB_ENV"
+          # OS version resources (Windows VERSIONINFO/NSIS, macOS bundle) need a
+          # plain numeric X.Y.Z — strip any -rc/-beta prerelease suffix.
           wails3 update build-assets -name MarkdownMD -binaryname MarkdownMD \
-            -config build/config.yml -dir build -productversion "$VERSION"
+            -config build/config.yml -dir build -productversion "${VERSION%%-*}"
       - name: Package
         run: wails3 task linux:package PRODUCT_VERSION=${{ env.PRODUCT_VERSION }}
       - name: Collect artifacts
