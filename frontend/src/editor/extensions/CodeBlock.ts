@@ -18,6 +18,66 @@ mermaidScratch.style.cssText =
   'position:absolute;visibility:hidden;top:-9999px;left:-9999px;width:1200px'
 document.body.appendChild(mermaidScratch)
 
+// Mermaid palette tuned to the app's design tokens (styles/tokens.css): blue-600
+// accent (--link), gray surfaces/borders, dark text — applied via the 'base'
+// theme, the one meant for variable overrides. Also replaces Mermaid's garish
+// default pie colors with a curated categorical set.
+const MERMAID_THEME_VARS = {
+  background: '#ffffff',
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif",
+  fontSize: '14px',
+  // Nodes / primary surfaces — soft blue fill, blue border, dark text.
+  primaryColor: '#eff6ff',
+  primaryBorderColor: '#2563eb',
+  primaryTextColor: '#111827',
+  secondaryColor: '#f3f4f6',
+  secondaryBorderColor: '#d1d5db',
+  secondaryTextColor: '#111827',
+  tertiaryColor: '#f9fafb',
+  tertiaryBorderColor: '#e5e7eb',
+  tertiaryTextColor: '#111827',
+  // Edges, arrows, relationship lines.
+  lineColor: '#6b7280',
+  textColor: '#111827',
+  // Sequence actors + notes.
+  actorBkg: '#eff6ff',
+  actorBorder: '#2563eb',
+  actorTextColor: '#111827',
+  signalColor: '#374151',
+  signalTextColor: '#111827',
+  noteBkgColor: '#fef9c3',
+  noteTextColor: '#111827',
+  noteBorderColor: '#fde68a',
+  // Gantt: done → active → planned reads as green → blue → light blue; subtle
+  // slate section banding. (Grid tick lines are forced light in CSS — Mermaid
+  // renders them with stroke=currentColor, which resolves to black here.)
+  sectionBkgColor: '#f8fafc',
+  altSectionBkgColor: '#ffffff',
+  sectionBkgColor2: '#f1f5f9',
+  taskBkgColor: '#bfdbfe',
+  taskBorderColor: '#3b82f6',
+  taskTextColor: '#111827',
+  taskTextOutsideColor: '#111827',
+  taskTextDarkColor: '#111827',
+  taskTextLightColor: '#ffffff',
+  activeTaskBkgColor: '#2563eb',
+  activeTaskBorderColor: '#1d4ed8',
+  doneTaskBkgColor: '#bbf7d0',
+  doneTaskBorderColor: '#16a34a',
+  critBkgColor: '#fecaca',
+  critBorderColor: '#ef4444',
+  gridColor: '#e5e7eb',
+  todayLineColor: '#ef4444',
+  // Pie — curated categorical palette with white separators.
+  pie1: '#2563eb', pie2: '#10b981', pie3: '#f59e0b', pie4: '#8b5cf6',
+  pie5: '#ec4899', pie6: '#06b6d4', pie7: '#ef4444', pie8: '#84cc16',
+  pie9: '#6366f1', pie10: '#14b8a6', pie11: '#f97316', pie12: '#a855f7',
+  pieStrokeColor: '#ffffff', pieStrokeWidth: '2px',
+  pieOuterStrokeColor: '#e5e7eb', pieOuterStrokeWidth: '1px',
+  pieSectionTextColor: '#111827', pieTitleTextColor: '#111827',
+  pieLegendTextColor: '#374151', pieOpacity: '1',
+}
+
 function enqueueMermaidRender(task: () => Promise<void>): void {
   mermaidQueue = mermaidQueue.then(task, task)
 }
@@ -29,7 +89,8 @@ async function getMermaid(): Promise<MermaidApi | null> {
     _mermaid = m.default
     _mermaid.initialize({
       startOnLoad: false,
-      theme: 'default',
+      theme: 'base',
+      themeVariables: MERMAID_THEME_VARS,
       securityLevel: 'loose',
       htmlLabels: true,
       sequence: { htmlLabels: true, useMaxWidth: false },

@@ -23,6 +23,13 @@
   height: auto;
 }
 
+/* Gantt grid tick lines render with stroke=currentColor (→ black) regardless of
+   the gridColor theme variable; force them to the light token. A CSS rule beats
+   the SVG presentation attribute. */
+.mermaid-preview .grid .tick line {
+  stroke: var(--border);
+}
+
 /* Actual-size mode (default for gantt; opt-in elsewhere): render at natural
    width and scroll. Left-align so the scroll start stays reachable — a centered
    flex item wider than its container clips its own left edge. */
