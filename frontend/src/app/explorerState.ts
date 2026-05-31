@@ -1,6 +1,6 @@
 // Per-window state for the file explorer. Lives in app/ (not ui/) so commands
 // can mutate it and a future persistence layer can subscribe without reaching
-// into UI modules. See docs/architecture.md ("State location rules").
+// into UI modules. See ../md-pro/docs/architecture.md ("State location rules").
 
 type Listener = () => void
 

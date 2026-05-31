@@ -162,7 +162,7 @@ func emitToCurrentWindow(app *application.App, name string) func(*application.Co
 // emitCommandToCurrentWindow routes a context-menu item through the standard
 // `command` event with { id, args: { path } } payload, matching the
 // dispatcher in app/main.ts. This is the shape called out in
-// docs/architecture.md ("Event topology" + "The command registry is the
+// ../md-pro/docs/architecture.md ("Event topology" + "The command registry is the
 // spine") — all explorer right-clicks go through it.
 //
 // Tab context menus still use emitToCurrentWindow above with bespoke event
@@ -270,7 +270,7 @@ func addCmd(app *application.App, m *application.Menu, label, accel, id string) 
 		// window, or with multiple windows open every window runs the command
 		// (e.g. File → Open opening in the wrong window). Mirrors
 		// emitCommandToCurrentWindow; falls back to global only if no current
-		// window. See docs/architecture.md "window-scoped emissions".
+		// window. See ../md-pro/docs/architecture.md "window-scoped emissions".
 		if win := app.Window.Current(); win != nil {
 			win.EmitEvent("command", id)
 			return

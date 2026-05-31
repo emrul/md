@@ -24,7 +24,7 @@ export interface FeatureContext {
  *
  * Gate paid features on the license inside these hooks (read it from the pro Go
  * LicenseService) — either skip registration entirely (hidden) or register and
- * upsell on execute (discoverable). See docs/pro-features.md.
+ * upsell on execute (discoverable). See ../md-pro/docs/pro-features.md.
  */
 export interface FeatureModule {
   /** Stable unique id, e.g. "pro.ai-assist". Used for dedupe and logging. */

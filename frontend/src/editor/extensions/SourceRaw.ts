@@ -6,7 +6,7 @@ import type { Node as PMNode } from '@tiptap/pm/model'
 import { defaultMarkdownSerializer } from 'prosemirror-markdown'
 
 /**
- * Lossless hybrid ⇄ WYSIWYG switching (see docs/lossless-mode-switch-plan.md).
+ * Lossless hybrid ⇄ WYSIWYG switching (see ../md-pro/docs/lossless-mode-switch-plan.md).
  *
  * A top-level paragraph/heading carries `sourceRaw` — the exact markdown it was
  * built from — so an *unedited* block keeps its original spelling (manual line

@@ -15,7 +15,7 @@ import (
 // SessionService persists and restores the multi-window editing session across
 // app restarts. It owns <configHome>/MarkdownMD/session.json.
 //
-// Ownership split (see docs/architecture.md "State location rules"):
+// Ownership split (see ../md-pro/docs/architecture.md "State location rules"):
 //   - Go owns window geometry and the clean-shutdown flag.
 //   - The frontend owns per-window content (open file tabs + explorer panel
 //     state) and pushes it via SaveWindowContent whenever it changes.

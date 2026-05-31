@@ -24,7 +24,7 @@ func main() {
 	opts := app.Options{Assets: assets, Version: currentVersion}
 	// applyPro is a no-op in the default OSS build; with -tags pro it pulls
 	// in the private md-pro module and wires its services + menus.
-	// See pro_off.go / pro_on.go and docs/pro-features.md.
+	// See pro_off.go / pro_on.go and ../md-pro/docs/pro-features.md.
 	applyPro(&opts)
 	if err := app.Run(opts); err != nil {
 		log.Fatal(err)

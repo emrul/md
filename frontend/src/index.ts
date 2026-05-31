@@ -1,6 +1,6 @@
 // Public API consumed by the commercial overlay (md-pro) through the
 // `@markdownmd` vite alias. Keep this surface stable — an external build imports
-// from here. See docs/pro-features.md.
+// from here. See ../md-pro/docs/pro-features.md.
 
 export { boot } from './app/boot'
 export { bootEditorWindow } from './app/bootEditor'
