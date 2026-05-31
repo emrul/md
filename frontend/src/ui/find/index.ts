@@ -80,7 +80,8 @@ export function mountFind(
 
   // The rail owns the button's position + vertical slot; we mirror the panel
   // under it whenever the slot moves.
-  const railHandle = rail.register({ id: 'find', order: 5, button })
+  // Order 15 sits below ToC (10) and above any pro items like Change History (20).
+  const railHandle = rail.register({ id: 'find', order: 15, button })
   railHandle.onLayout((top) => positionPanel(top))
 
   // --- state ----------------------------------------------------------------

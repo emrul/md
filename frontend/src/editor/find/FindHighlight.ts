@@ -143,11 +143,16 @@ export function createPmFindEngine(editor: Editor): FindController {
   }
 
   /** Move the selection onto a match (so it becomes the active highlight) and
-   * scroll it into view. */
+   * scroll it to the center of the view. PM's transaction scrollIntoView only
+   * nudges minimally — and can leave the hit tucked under the floating panel —
+   * so we center the match's DOM node explicitly. */
   function selectAndScroll(m: SearchResult): void {
-    const { state } = editor
+    const { state, view } = editor
     const sel = TextSelection.create(state.doc, m.from, m.to)
-    dispatch(state.tr.setSelection(sel).scrollIntoView())
+    dispatch(state.tr.setSelection(sel))
+    const node = view.domAtPos(m.from)?.node
+    const el = node && node.nodeType === 1 ? (node as HTMLElement) : (node?.parentElement ?? null)
+    el?.scrollIntoView({ block: 'center', inline: 'nearest' })
   }
 
   function move(dir: 1 | -1): FindResult {

@@ -210,7 +210,7 @@ function createCmFindEngine(view: EditorView): FindController {
   function selectAndScroll(m: CmRange): void {
     view.dispatch({
       selection: { anchor: m.from, head: m.to },
-      scrollIntoView: true,
+      effects: EditorView.scrollIntoView(m.from, { y: 'center' }),
       userEvent: 'select.find',
     })
   }
