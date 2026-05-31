@@ -1,0 +1,41 @@
+/* Shared file-preview popover — used by the explorer hover preview and the
+   in-editor markdown-link hover preview. Anchored to a DOMRect, positioned
+   fixed, non-interactive. */
+.file-preview-popover {
+  position: fixed;
+  z-index: 70;
+  width: 300px;
+  max-width: 340px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 20px rgba(17, 24, 39, 0.12);
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text);
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.file-preview-popover-title {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-preview-popover-body {
+  color: var(--muted);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.file-preview-popover-empty {
+  color: var(--muted);
+  font-style: italic;
+}

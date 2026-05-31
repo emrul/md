@@ -300,47 +300,8 @@
   font-style: italic;
 }
 
-/* File hover preview — floats next to the hovered row, body-mounted so it
-   overlays the editor without being clipped by the sidebar's scroll box.
-   pointer-events:none so it never steals hover or clicks. */
-.tree-hover-preview {
-  position: fixed;
-  z-index: 70;
-  width: 300px;
-  max-width: 340px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  box-shadow: 0 8px 20px rgba(17, 24, 39, 0.12);
-  padding: 8px 10px;
-  font-size: 12px;
-  color: var(--text);
-  pointer-events: none;
-  -webkit-user-select: none;
-  user-select: none;
-}
-.tree-hover-preview-title {
-  font-weight: 600;
-  font-size: 13px;
-  margin-bottom: 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tree-hover-preview-body {
-  color: var(--muted);
-  line-height: 1.45;
-  white-space: pre-wrap;
-  word-break: break-word;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.tree-hover-preview-empty {
-  color: var(--muted);
-  font-style: italic;
-}
+/* The file hover preview popover now lives in ui/filePreviewPopover.css
+   (.file-preview-popover), shared with the in-editor markdown-link preview. */
 
 .explorer-header-reset {
   /* Stand out a touch from the nav cluster so the user sees the pin

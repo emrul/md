@@ -17,6 +17,7 @@ import { lowlight } from './extensions/lowlight'
 import { MathInline, MathBlock } from './extensions/Math'
 import { SourceBlock } from './extensions/SourceBlock'
 import { LinkOpen } from './extensions/LinkOpen'
+import { LinkPreview } from './extensions/LinkPreview'
 import { convertToWysiwyg } from './mode'
 import { HeadingCycle } from './extensions/HeadingCycle'
 import { SlashMenu } from './extensions/slash/SlashMenu'
@@ -75,7 +76,8 @@ export function createEditor(opts: CreateEditorOptions): Editor {
         getSourcePath: opts.getSourcePath ?? (() => null),
       }),
       Link.configure({ openOnClick: false }),
-      LinkOpen,
+      LinkOpen.configure({ getSourcePath: opts.getSourcePath ?? (() => null) }),
+      LinkPreview.configure({ getSourcePath: opts.getSourcePath ?? (() => null) }),
       Image,
       Placeholder.configure({ placeholder: "Type '/' for commands…" }),
       CharacterCount,

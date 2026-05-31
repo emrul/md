@@ -7,6 +7,7 @@ import {
   GitBranch as $GitBranch,
   StatMtimes as $StatMtimes,
   RelativeLinkPath as $RelativeLinkPath,
+  ResolveLink as $ResolveLink,
   CreateFileNear as $CreateFileNear,
   CreateFolderNear as $CreateFolderNear,
   ChildLinksForFolder as $ChildLinksForFolder,
@@ -14,6 +15,25 @@ import {
 import { ChildLink, DirEntry, ReadDirResult } from '../../bindings/markdownmd/app/models.js'
 
 export type { ChildLink, DirEntry, ReadDirResult }
+
+/** A markdown link href resolved (Go-side) against the document that holds it. */
+export interface ResolvedLink {
+  /** Absolute, cleaned OS path the href points at; '' when it can't resolve. */
+  path: string
+  exists: boolean
+  isMarkdown: boolean
+}
+
+/**
+ * Resolve an in-document markdown link href to an absolute path — the inverse of
+ * relativeLinkPath. fromFile is the document the link lives in ('' for Untitled,
+ * where only absolute / file:// hrefs resolve). Strips #fragment / ?query and
+ * decodes percent-encoding. Backs the in-editor link preview + ⌘/Ctrl-click open.
+ */
+export async function resolveLink(fromFile: string, href: string): Promise<ResolvedLink> {
+  const r = await $ResolveLink(fromFile, href)
+  return { path: r.path ?? '', exists: !!r.exists, isMarkdown: !!r.isMarkdown }
+}
 
 export async function readDir(
   path: string,

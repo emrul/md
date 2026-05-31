@@ -607,6 +607,56 @@ func TestRelativeLinkPath(t *testing.T) {
 	}
 }
 
+func TestResolveLink(t *testing.T) {
+	root := t.TempDir()
+	build(t, root,
+		"a/spec.md",
+		"a/api.md",
+		"a/my note.md",
+		"a/readme.txt",
+		"b/baz.md",
+	)
+	s := newSvc(t)
+	spec := filepath.Join(root, "a/spec.md")
+	api := filepath.Join(root, "a/api.md")
+
+	check := func(name, fromFile, href, wantPath string, wantExists, wantMd bool) {
+		t.Helper()
+		got, err := s.ResolveLink(fromFile, href)
+		if err != nil {
+			t.Fatalf("%s: unexpected error: %v", name, err)
+		}
+		if got.Path != wantPath {
+			t.Errorf("%s: path = %q, want %q", name, got.Path, wantPath)
+		}
+		if got.Exists != wantExists {
+			t.Errorf("%s: exists = %v, want %v", name, got.Exists, wantExists)
+		}
+		if got.IsMarkdown != wantMd {
+			t.Errorf("%s: isMarkdown = %v, want %v", name, got.IsMarkdown, wantMd)
+		}
+	}
+
+	check("same dir", spec, "./api.md", api, true, true)
+	check("sibling dir", spec, "../b/baz.md", filepath.Join(root, "b/baz.md"), true, true)
+	check("fragment stripped", spec, "./api.md#section", api, true, true)
+	check("query stripped", spec, "./api.md?v=1", api, true, true)
+	check("percent-encoded space", spec, "./my%20note.md", filepath.Join(root, "a/my note.md"), true, true)
+	check("missing target", spec, "./gone.md", filepath.Join(root, "a/gone.md"), false, true)
+	check("non-markdown", spec, "./readme.txt", filepath.Join(root, "a/readme.txt"), true, false)
+	// Untitled source: a relative link has no base directory to resolve against.
+	check("untitled + relative", "", "./api.md", "", false, false)
+	// Absolute file:// URL resolves regardless of the source document.
+	check("file:// url", "", fileURL(api), api, true, true)
+
+	// Round-trip: RelativeLinkPath → ResolveLink lands back on the same file.
+	rel, _ := s.RelativeLinkPath(spec, api)
+	got, _ := s.ResolveLink(spec, rel)
+	if got.Path != api {
+		t.Errorf("round-trip: path = %q, want %q", got.Path, api)
+	}
+}
+
 func equal(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

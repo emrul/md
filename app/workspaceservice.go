@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -506,6 +507,86 @@ func fileURL(absPath string) string {
 		slashed = "/" + slashed
 	}
 	return "file://" + slashed
+}
+
+// ResolvedLink is the outcome of resolving an in-document markdown link href
+// against the document that contains it. Path is the absolute, cleaned OS path
+// the href points at (empty when it can't be resolved — e.g. a relative link in
+// an Untitled doc, which has no base directory).
+type ResolvedLink struct {
+	Path       string `json:"path"`
+	Exists     bool   `json:"exists"`
+	IsMarkdown bool   `json:"isMarkdown"`
+}
+
+// ResolveLink turns a markdown link href into an absolute on-disk path — the
+// inverse of RelativeLinkPath. fromFile is the document the link lives in (its
+// directory is the base for relative hrefs); it may be empty for an Untitled
+// doc, in which case only absolute / file:// hrefs resolve. The fragment
+// (#anchor) and query (?…) are stripped and percent-encoding is decoded, to
+// match the encodeHref applied when links are inserted.
+//
+// Used by the in-editor link preview (gate + path to read) and by ⌘/Ctrl-click
+// open. Reading still goes through the existing bounded PreviewFile / ReadFile,
+// so this adds no new filesystem surface.
+func (s *WorkspaceService) ResolveLink(fromFile, href string) (ResolvedLink, error) {
+	var out ResolvedLink
+	if i := strings.IndexAny(href, "#?"); i >= 0 {
+		href = href[:i]
+	}
+	if href == "" {
+		return out, nil
+	}
+
+	var abs string
+	if strings.HasPrefix(href, "file://") {
+		p, ok := osPathFromFileURL(href)
+		if !ok {
+			return out, nil
+		}
+		abs = p
+	} else {
+		decoded, err := url.PathUnescape(href)
+		if err != nil {
+			decoded = href // tolerate a stray '%' — fall back to the raw href
+		}
+		p := filepath.FromSlash(decoded)
+		if filepath.IsAbs(p) {
+			abs = filepath.Clean(p)
+		} else if fromFile == "" {
+			return out, nil // relative link with no base directory
+		} else {
+			abs = filepath.Clean(filepath.Join(filepath.Dir(fromFile), p))
+		}
+	}
+
+	out.Path = abs
+	out.IsMarkdown = isMarkdownFile(abs)
+	if info, err := os.Stat(abs); err == nil && !info.IsDir() {
+		out.Exists = true
+	}
+	return out, nil
+}
+
+// osPathFromFileURL converts a file:// URL (as produced by fileURL) back to an
+// OS path — inverse of fileURL:
+//
+//	file:///foo/bar    -> /foo/bar
+//	file:///D:/foo/bar -> D:\foo\bar
+func osPathFromFileURL(u string) (string, bool) {
+	parsed, err := url.Parse(u)
+	if err != nil || parsed.Scheme != "file" {
+		return "", false
+	}
+	p := parsed.Path // url.Parse has already percent-decoded this
+	if p == "" {
+		return "", false
+	}
+	// Windows drive paths arrive as "/D:/foo" — drop the leading slash.
+	if len(p) >= 3 && p[0] == '/' && p[2] == ':' {
+		p = p[1:]
+	}
+	return filepath.FromSlash(p), true
 }
 
 type scanResult struct {

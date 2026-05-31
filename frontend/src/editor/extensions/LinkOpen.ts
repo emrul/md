@@ -2,10 +2,32 @@ import { Extension } from '@tiptap/core'
 import { Plugin } from '@tiptap/pm/state'
 import type { EditorState } from '@tiptap/pm/state'
 import { Browser } from '@wailsio/runtime'
+import { commands } from '../../commands/registry'
+import { resolveLink } from '../../services/workspace'
 
 // [text](url) — used to recover the URL when the click lands in a source block,
 // where the link is raw text rather than a ProseMirror mark.
 const SB_LINK_RE = /\[([^\]\n]+)\]\(([^)\n]+)\)/g
+
+// Absolute web/mail/tel links → system browser. Everything else is treated as a
+// candidate local target.
+const ABS = /^(https?|mailto|tel):/i
+const MD_EXT = /\.(md|markdown|mdx)$/i
+
+// Cheap, synchronous pre-filter (safe on every mouse-move): does this href look
+// like a *local* markdown link? Absolute URLs are excluded; the path portion
+// (sans #fragment / ?query, lightly decoded) must end in a markdown extension.
+// Actual resolution + existence is confirmed Go-side via resolveLink.
+export function looksLocalMd(href: string | null | undefined): boolean {
+  if (!href || ABS.test(href)) return false
+  let p = href.split(/[#?]/, 1)[0]
+  try {
+    p = decodeURIComponent(p)
+  } catch {
+    /* keep the raw path if it isn't valid percent-encoding */
+  }
+  return MD_EXT.test(p)
+}
 
 // Resolve the link target at a document position, covering both worlds: a
 // WYSIWYG `link` mark (tables/lists) and a source block's literal [text](url).
@@ -40,20 +62,39 @@ export function linkHrefAt(state: EditorState, pos: number): string | null {
   return null
 }
 
-// Open absolute web/mail/tel links in the system browser on ⌘/Ctrl-click.
-// Relative/anchor links are left alone (in-app navigation isn't wired yet).
-export const LinkOpen = Extension.create({
+// Resolve a local markdown link and open it as a tab. openPath dedupes — it
+// switches to the file's tab if already open, else opens a new one.
+async function openLocalLink(fromFile: string, href: string): Promise<void> {
+  try {
+    const r = await resolveLink(fromFile, href)
+    if (r.exists && r.isMarkdown) commands.execute('files.openPath', { path: r.path })
+  } catch {
+    /* resolution failed — leave the link as a no-op rather than erroring */
+  }
+}
+
+export interface LinkOpenOptions {
+  /** The receiving document's path (or null for Untitled) — base for relative links. */
+  getSourcePath: () => string | null
+}
+
+// ⌘/Ctrl-click opens links: absolute web/mail/tel in the system browser, local
+// markdown files as a tab in-app.
+export const LinkOpen = Extension.create<LinkOpenOptions>({
   name: 'linkOpen',
 
+  addOptions() {
+    return { getSourcePath: () => null }
+  },
+
   addProseMirrorPlugins() {
-    const ABS = /^(https?|mailto|tel):/i
+    const getSourcePath = this.options.getSourcePath
     return [
       new Plugin({
         props: {
           handleDOMEvents: {
-            // ⌘/Ctrl-click opens absolute links in the system browser. We hook
-            // the real DOM click (not PM's handleClick) for two reasons: a
-            // WYSIWYG link renders as a real <a>, so we read its href straight
+            // We hook the real DOM click (not PM's handleClick) for two reasons:
+            // a WYSIWYG link renders as a real <a>, so we read its href straight
             // off the event target; and we preventDefault before WebKit follows
             // the anchor itself. That native anchor handling is why WYSIWYG links
             // weren't opening while hybrid source-block links (plain text, no
@@ -68,10 +109,18 @@ export const LinkOpen = Extension.create({
                 const at = view.posAtCoords({ left: event.clientX, top: event.clientY })
                 if (at) href = linkHrefAt(view.state, at.pos)
               }
-              if (!href || !ABS.test(href)) return false
-              event.preventDefault()
-              void Browser.OpenURL(href).catch(() => {})
-              return true
+              if (!href) return false
+              if (ABS.test(href)) {
+                event.preventDefault()
+                void Browser.OpenURL(href).catch(() => {})
+                return true
+              }
+              if (looksLocalMd(href)) {
+                event.preventDefault()
+                void openLocalLink(getSourcePath() ?? '', href)
+                return true
+              }
+              return false
             },
           },
         },
