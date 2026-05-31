@@ -24,6 +24,7 @@ import { convertToWysiwyg } from './mode'
 import { HeadingCycle } from './extensions/HeadingCycle'
 import { SlashMenu } from './extensions/slash/SlashMenu'
 import { TreeDropHandler } from './extensions/treeDropHandler'
+import { FindHighlight } from './find/FindHighlight'
 import './extensions/task-list.css'
 import './extensions/table.css'
 import { bubbleMenuShouldShow } from '../ui/bubbleMenu'
@@ -92,6 +93,7 @@ export function createEditor(opts: CreateEditorOptions): Editor {
       SourceBlock,
       HeadingCycle,
       SlashMenu,
+      FindHighlight,
       TreeDropHandler.configure({
         getSourcePath: opts.getSourcePath ?? (() => null),
       }),

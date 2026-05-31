@@ -1,7 +1,9 @@
 import type { Editor } from '@tiptap/core'
 import type { TabManager } from '../app/tabManager'
 import type { ExplorerState } from '../app/explorerState'
+import type { FindState } from '../app/findState'
 import { commands } from './registry'
+import { registerFindCommands } from './find'
 import { NewEmptyWindow, OpenLogsWindow } from '../app/ipc'
 import * as files from '../services/files'
 import * as tabs from '../services/tabs'
@@ -9,7 +11,11 @@ import * as tabs from '../services/tabs'
 export { commands } from './registry'
 export { installKeymap } from './keymap'
 
-export function registerCommands(tm: TabManager, explorer: ExplorerState): void {
+export function registerCommands(
+  tm: TabManager,
+  explorer: ExplorerState,
+  findState: FindState,
+): void {
   // Helper: run a command against the active tab's editor, no-op if no tab.
   function withEditor(fn: (editor: Editor) => void): () => void {
     return () => {
@@ -237,4 +243,7 @@ export function registerCommands(tm: TabManager, explorer: ExplorerState): void 
     keybinding: 'Cmd+Shift+E',
     handler: () => explorer.toggleOverlay(),
   })
+
+  // Find / Replace verbs (find.*) — registered centrally, driven by FindState.
+  registerFindCommands(findState, tm)
 }

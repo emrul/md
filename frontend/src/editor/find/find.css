@@ -1,0 +1,39 @@
+/* In-document find highlights, shared by both engines.
+ *
+ * ProseMirror (wysiwyg/hybrid): prosemirror-search emits these class names.
+ * CodeMirror (source): our own decorations in sourceView.ts use `cm-find-*`
+ * because CM's built-in highlighter only paints while its panel is open. */
+
+:root {
+  --find-match-bg: rgba(255, 214, 0, 0.32);
+  --find-match-active-bg: rgba(255, 145, 0, 0.6);
+  --find-match-outline: rgba(180, 120, 0, 0.7);
+}
+
+.ProseMirror-search-match {
+  background: var(--find-match-bg);
+  border-radius: 2px;
+}
+.ProseMirror-active-search-match {
+  background: var(--find-match-active-bg);
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px var(--find-match-outline);
+}
+
+.cm-find-match {
+  background: var(--find-match-bg);
+  border-radius: 2px;
+}
+.cm-find-match-active {
+  background: var(--find-match-active-bg);
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px var(--find-match-outline);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --find-match-bg: rgba(255, 214, 0, 0.22);
+    --find-match-active-bg: rgba(255, 160, 0, 0.5);
+    --find-match-outline: rgba(255, 200, 80, 0.7);
+  }
+}

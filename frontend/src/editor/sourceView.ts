@@ -21,7 +21,26 @@ import {
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language'
 import { markdown } from '@codemirror/lang-markdown'
 import { tags as t } from '@lezer/highlight'
+import {
+  SearchQuery,
+  search,
+  setSearchQuery,
+  getSearchQuery,
+  replaceNext as cmReplaceNext,
+  replaceAll as cmReplaceAll,
+} from '@codemirror/search'
+import {
+  EMPTY_RESULT,
+  INVALID_RESULT,
+  MATCH_CAP,
+  SNIPPET_PAD,
+  type FindController,
+  type FindMatch,
+  type FindQueryInput,
+  type FindResult,
+} from './find/types'
 import './source-view.css'
+import './find/find.css'
 
 function fencedLineDeco(isFirst: boolean, isLast: boolean): Decoration {
   const classes = ['cm-fenced-code']
@@ -90,6 +109,191 @@ const markdownHighlight = HighlightStyle.define([
   { tag: t.meta, class: 'tok-marker' },
 ])
 
+// --- in-document find (source mode) -----------------------------------------
+// CM's built-in highlighter only paints while its search panel is open, and we
+// never open that panel, so we roll our own decorations off the same search
+// state (`getSearchQuery`) that the headless replace commands read.
+
+function buildFindDecos(view: EditorView): DecorationSet {
+  const query = getSearchQuery(view.state)
+  const builder = new RangeSetBuilder<Decoration>()
+  if (!query.valid) return builder.finish()
+  const sel = view.state.selection.main
+  for (const { from, to } of view.visibleRanges) {
+    const cursor = query.getCursor(view.state, from, to)
+    for (let it = cursor.next(); !it.done; it = cursor.next()) {
+      const m = it.value
+      const active = m.from === sel.from && m.to === sel.to
+      builder.add(
+        m.from,
+        m.to,
+        Decoration.mark({
+          class: active ? 'cm-find-match cm-find-match-active' : 'cm-find-match',
+        }),
+      )
+    }
+  }
+  return builder.finish()
+}
+
+const findHighlighter = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet
+    constructor(view: EditorView) {
+      this.decorations = buildFindDecos(view)
+    }
+    update(u: ViewUpdate): void {
+      const queryChanged = u.transactions.some((tr) => tr.effects.some((e) => e.is(setSearchQuery)))
+      if (u.docChanged || u.viewportChanged || u.selectionSet || queryChanged) {
+        this.decorations = buildFindDecos(u.view)
+      }
+    }
+  },
+  { decorations: (v) => v.decorations },
+)
+
+type CmRange = { from: number; to: number }
+
+function cmQuery(input: FindQueryInput, replace = ''): SearchQuery {
+  return new SearchQuery({
+    search: input.text,
+    caseSensitive: input.caseSensitive,
+    regexp: input.regex,
+    wholeWord: input.wholeWord,
+    replace,
+  })
+}
+
+function cmCollect(state: EditorState, query: SearchQuery): CmRange[] {
+  const out: CmRange[] = []
+  if (!query.valid) return out
+  const cursor = query.getCursor(state)
+  for (let it = cursor.next(); !it.done && out.length < MATCH_CAP; it = cursor.next()) {
+    out.push({ from: it.value.from, to: it.value.to })
+  }
+  return out
+}
+
+function createCmFindEngine(view: EditorView): FindController {
+  let lastInput: FindQueryInput | null = null
+  let armed = false
+
+  const activeIndex = (matches: CmRange[]): number => {
+    const sel = view.state.selection.main
+    return matches.findIndex((m) => m.from === sel.from && m.to === sel.to)
+  }
+
+  function buildResult(matches: CmRange[]): FindResult {
+    const doc = view.state.doc
+    const list: FindMatch[] = matches.map((m, i) => {
+      const line = doc.lineAt(m.from)
+      const col = m.from - line.from
+      const end = Math.min(m.to - line.from, line.length)
+      const hit = doc.sliceString(m.from, Math.min(m.to, line.to))
+      const bs = Math.max(0, col - SNIPPET_PAD)
+      const ae = Math.min(line.length, end + SNIPPET_PAD)
+      let before = line.text.slice(bs, col)
+      let after = line.text.slice(end, ae)
+      if (bs > 0) before = '…' + before
+      if (ae < line.length) after = after + '…'
+      return { index: i, before, hit, after, line: line.number }
+    })
+    return {
+      valid: true,
+      total: matches.length,
+      active: activeIndex(matches),
+      capped: matches.length >= MATCH_CAP,
+      matches: list,
+    }
+  }
+
+  function selectAndScroll(m: CmRange): void {
+    view.dispatch({
+      selection: { anchor: m.from, head: m.to },
+      scrollIntoView: true,
+      userEvent: 'select.find',
+    })
+  }
+
+  function current(): FindResult {
+    if (!armed || !lastInput) return EMPTY_RESULT
+    const query = cmQuery(lastInput)
+    if (!query.valid) return INVALID_RESULT
+    return buildResult(cmCollect(view.state, query))
+  }
+
+  function move(dir: 1 | -1): FindResult {
+    if (!armed || !lastInput) return current()
+    const matches = cmCollect(view.state, cmQuery(lastInput))
+    if (!matches.length) return buildResult(matches)
+    let cur = activeIndex(matches)
+    if (cur < 0) cur = dir > 0 ? -1 : 0
+    const ni = (cur + dir + matches.length) % matches.length
+    selectAndScroll(matches[ni])
+    return buildResult(matches)
+  }
+
+  const setSearch = (query: SearchQuery): void => {
+    view.dispatch({ effects: setSearchQuery.of(query) })
+  }
+
+  return {
+    setQuery(input: FindQueryInput): FindResult {
+      lastInput = input
+      const isEmpty = input.text.length === 0
+      const query = cmQuery(input)
+      if (isEmpty || !query.valid) {
+        armed = false
+        setSearch(new SearchQuery({ search: '' }))
+        return isEmpty ? EMPTY_RESULT : INVALID_RESULT
+      }
+      armed = true
+      setSearch(query)
+      const matches = cmCollect(view.state, query)
+      if (matches.length) {
+        const caret = view.state.selection.main.from
+        let ai = matches.findIndex((m) => m.from >= caret)
+        if (ai < 0) ai = 0
+        selectAndScroll(matches[ai])
+      }
+      return buildResult(matches)
+    },
+    next: () => move(1),
+    prev: () => move(-1),
+    goto(index: number): FindResult {
+      if (!lastInput) return current()
+      const matches = cmCollect(view.state, cmQuery(lastInput))
+      if (index < 0 || index >= matches.length) return buildResult(matches)
+      selectAndScroll(matches[index])
+      return buildResult(matches)
+    },
+    replace(replacement: string): FindResult {
+      if (!armed || !lastInput) return current()
+      setSearch(cmQuery(lastInput, replacement))
+      cmReplaceNext(view)
+      return current()
+    },
+    replaceAll(replacement: string): number {
+      if (!armed || !lastInput) return 0
+      const count = cmCollect(view.state, cmQuery(lastInput)).length
+      setSearch(cmQuery(lastInput, replacement))
+      cmReplaceAll(view)
+      return count
+    },
+    selectedText(): string {
+      const sel = view.state.selection.main
+      return sel.empty ? '' : view.state.sliceDoc(sel.from, sel.to)
+    },
+    current,
+    hasQuery: () => armed,
+    clear(): void {
+      armed = false
+      lastInput = null
+      setSearch(new SearchQuery({ search: '' }))
+    },
+  }
+}
+
 export interface SourceViewOptions {
   parent: HTMLElement
   doc: string
@@ -98,6 +302,8 @@ export interface SourceViewOptions {
 
 export interface SourceView {
   view: EditorView
+  /** In-document find over the CodeMirror buffer (source mode). */
+  find: FindController
   getValue(): string
   setValue(text: string): void
   focus(): void
@@ -123,6 +329,13 @@ export function createSourceView(opts: SourceViewOptions): SourceView {
         markdown(),
         syntaxHighlighting(markdownHighlight),
         fencedCodeBackground,
+        // `search()` initializes the search state so setSearchQuery + the
+        // headless replace commands work; `findHighlighter` paints the matches
+        // (CM's built-in highlighter only paints while its panel is open, which
+        // we never open). No searchKeymap — Cmd/Ctrl+F routes through our own
+        // command registry, not CM's panel.
+        search(),
+        findHighlighter,
         keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
         EditorView.updateListener.of((u) => {
           if (!u.docChanged) return
@@ -137,6 +350,7 @@ export function createSourceView(opts: SourceViewOptions): SourceView {
 
   return {
     view,
+    find: createCmFindEngine(view),
     getValue: () => view.state.doc.toString(),
     setValue: (text: string) => {
       lastDoc = text

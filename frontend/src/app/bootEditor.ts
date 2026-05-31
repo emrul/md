@@ -1,6 +1,7 @@
 import { Events, Window } from '@wailsio/runtime'
 import { TabManager } from './tabManager'
 import { ExplorerState } from './explorerState'
+import { FindState } from './findState'
 import type { Tab } from './tab'
 import { mountTitle } from './title'
 import { registerCommands, installKeymap, commands } from '../commands'
@@ -11,6 +12,7 @@ import { mountStatusbar } from '../ui/statusbar'
 import { mountTabStrip } from '../ui/tabStrip'
 import { mountExplorer } from '../ui/explorer'
 import { mountToc } from '../ui/toc'
+import { mountFind } from '../ui/find'
 import { mountGutterRail } from '../ui/gutterRail'
 import { findGitRoot, gitBranch } from '../services/workspace'
 import { openPaths } from '../services/files'
@@ -42,12 +44,19 @@ export async function bootEditorWindow(): Promise<void> {
   let statusbar: { refresh: () => void } | null = null
   let tabStrip: ReturnType<typeof mountTabStrip> | null = null
   let toc: { refresh: () => void } | null = null
+  let find: { refresh: () => void } | null = null
 
   function refreshAll(): void {
     toolbar?.refresh()
     statusbar?.refresh()
     tabStrip?.refresh()
     toc?.refresh()
+    // The rail doesn't reflow on a mode switch on its own (that path fires only
+    // onAfterTabContentChange, which the rail doesn't watch). Reposition here so
+    // the always-visible Find button re-anchors to the new view; find.refresh()
+    // re-targets the query and updates the panel.
+    rail.reposition()
+    find?.refresh()
   }
 
   function attachTabFeatures(tab: Tab): void {
@@ -109,13 +118,17 @@ export async function bootEditorWindow(): Promise<void> {
   tm.onChange(refreshAll)
 
   const explorerState = new ExplorerState()
-  // The left gutter rail owns positioning + vertical stacking for ToC and any
-  // pro rail items (Change History). Constructed once, shared with mountToc and
-  // exposed to features via featureCtx.
+  // Window-level find session (query, options, mode, open/closed). Constructed
+  // before registerCommands so the find.* handlers can flip it, and handed to
+  // mountFind later so the panel subscribes to the same instance.
+  const findState = new FindState(tm)
+  // The left gutter rail owns positioning + vertical stacking for ToC, Find, and
+  // any pro rail items (Change History). Constructed once, shared with mountToc /
+  // mountFind and exposed to features via featureCtx.
   const rail = mountGutterRail(host, tm, explorerState)
   const featureCtx: FeatureContext = { tm, explorer: explorerState, rail }
 
-  registerCommands(tm, explorerState)
+  registerCommands(tm, explorerState, findState)
   for (const f of features()) f.registerCommands?.(featureCtx)
   installKeymap()
   mountTitle(tm)
@@ -124,6 +137,7 @@ export async function bootEditorWindow(): Promise<void> {
   tabStrip = mountTabStrip(tm)
   mountExplorer(explorerState, tm)
   toc = mountToc(tm, explorerState, host, rail)
+  find = mountFind(findState, tm, host, rail)
   for (const f of features()) f.mount?.(featureCtx)
   markBootStep('bootEditor: core UI mounted (toolbar/statusbar/explorer)')
 

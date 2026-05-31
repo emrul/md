@@ -2,6 +2,8 @@ import type { Editor } from '@tiptap/core'
 import { getMarkdown, setMarkdown } from '../editor/serialize/markdown'
 import { getRenderMode, switchRenderMode, type RenderMode } from '../editor/mode'
 import { createSourceView, type SourceView } from '../editor/sourceView'
+import { createPmFindEngine } from '../editor/find/FindHighlight'
+import { EMPTY_RESULT, type FindController } from '../editor/find/types'
 
 // The user-facing mode. 'wysiwyg' and 'hybrid' are both the TipTap editor (the
 // difference is the editor's render mode); 'source' is the CodeMirror overlay.
@@ -35,6 +37,13 @@ export interface ViewController {
   /** True while a read-only overlay is mounted. */
   readonly overlayOpen: boolean
   onOverlayChange(fn: () => void): () => void
+  /**
+   * In-document find facade. Forwards to whichever engine backs the active
+   * mode (prosemirror-search in wysiwyg/hybrid, @codemirror/search in source),
+   * and clears the outgoing engine on a mode switch — the panel re-applies the
+   * query against the new view. UI talks only to this; it never sees an engine.
+   */
+  readonly find: FindController
 }
 
 export interface CreateViewControllerOptions {
@@ -57,6 +66,14 @@ export function createViewController(opts: CreateViewControllerOptions): ViewCon
   const modeListeners = new Set<() => void>()
   const contentListeners = new Set<() => void>()
   const overlayListeners = new Set<() => void>()
+
+  // The PM find engine lives as long as the editor; the CM engine is owned by
+  // whichever SourceView is currently mounted. `currentFindEngine` returns the
+  // one backing the active mode.
+  const pmFind = createPmFindEngine(opts.editor)
+  function currentFindEngine(): FindController | null {
+    return mode === 'source' ? (sourceView?.find ?? null) : pmFind
+  }
 
   // Read-only overlay (e.g. the pro diff view). Orthogonal to `mode`: it covers
   // whichever view is active and restores it on close.
@@ -162,6 +179,10 @@ export function createViewController(opts: CreateViewControllerOptions): ViewCon
     // so source⇄diff⇄source transitions don't fight over which view is visible.
     if (overlayEl) closeReadonlyOverlay()
     if (next === mode) return
+    // Drop the outgoing engine's highlights (positions won't survive the
+    // conversion / view swap). The find panel, watching onModeChange, re-applies
+    // the query against the new view's engine.
+    currentFindEngine()?.clear()
     if (next === 'source') {
       enterSource()
     } else if (mode === 'source') {
@@ -246,6 +267,18 @@ export function createViewController(opts: CreateViewControllerOptions): ViewCon
     onOverlayChange: (fn) => {
       overlayListeners.add(fn)
       return () => overlayListeners.delete(fn)
+    },
+    find: {
+      setQuery: (q) => currentFindEngine()?.setQuery(q) ?? EMPTY_RESULT,
+      next: () => currentFindEngine()?.next() ?? EMPTY_RESULT,
+      prev: () => currentFindEngine()?.prev() ?? EMPTY_RESULT,
+      goto: (i) => currentFindEngine()?.goto(i) ?? EMPTY_RESULT,
+      replace: (r) => currentFindEngine()?.replace(r) ?? EMPTY_RESULT,
+      replaceAll: (r) => currentFindEngine()?.replaceAll(r) ?? 0,
+      selectedText: () => currentFindEngine()?.selectedText() ?? '',
+      current: () => currentFindEngine()?.current() ?? EMPTY_RESULT,
+      hasQuery: () => currentFindEngine()?.hasQuery() ?? false,
+      clear: () => currentFindEngine()?.clear(),
     },
   }
 }

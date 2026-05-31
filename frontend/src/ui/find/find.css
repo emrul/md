@@ -1,0 +1,265 @@
+/* In-document find: gutter-rail button + floating panel. Lives inside
+   .tab-host (position:relative) so it floats over the content. The rail sets
+   the button's position + inline display; we style appearance only. Keep the
+   32px button footprint in sync with BUTTON_SIZE in gutterRail.ts. */
+
+.find-button {
+  position: absolute;
+  z-index: 30;
+  width: 32px;
+  height: 32px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.08);
+  transition:
+    background-color 120ms,
+    color 120ms;
+}
+.find-button:hover,
+.find-button.is-active {
+  background: var(--btn-hover);
+  color: var(--text);
+}
+.find-button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.find-button svg {
+  width: 17px;
+  height: 17px;
+  display: block;
+}
+
+.find-panel {
+  position: absolute;
+  z-index: 31;
+  width: 460px;
+  max-width: calc(100% - 24px);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  padding: 8px;
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+}
+.find-panel.is-open {
+  display: flex;
+}
+
+.find-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* The replace row only exists in replace mode. */
+.find-row-replace {
+  display: none;
+}
+.find-panel.is-replace .find-row-replace {
+  display: flex;
+}
+
+.find-mode-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.find-mode-toggle:hover {
+  background: var(--btn-hover);
+  color: var(--text);
+}
+.find-caret {
+  font-size: 9px;
+  opacity: 0.7;
+}
+
+.find-input-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+}
+.find-input {
+  width: 100%;
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 70px 0 8px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  outline: none;
+}
+.find-input:focus {
+  border-color: var(--focus-ring);
+}
+.find-input.is-invalid {
+  border-color: #e5484d;
+  background: rgba(229, 72, 77, 0.06);
+}
+.find-row-replace .find-input {
+  padding-right: 8px;
+}
+
+.find-options {
+  position: absolute;
+  right: 4px;
+  display: flex;
+  gap: 2px;
+}
+.find-opt {
+  min-width: 22px;
+  height: 20px;
+  padding: 0 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.find-opt:hover {
+  background: var(--btn-hover);
+  color: var(--text);
+}
+.find-opt.is-on {
+  color: var(--link);
+  background: var(--btn-hover);
+  border-color: var(--border);
+}
+
+.find-counter {
+  flex: 0 0 auto;
+  min-width: 42px;
+  text-align: right;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.find-nav,
+.find-close {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.find-nav:hover:not(:disabled),
+.find-close:hover {
+  background: var(--btn-hover);
+  color: var(--text);
+}
+.find-nav:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.find-with {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 0 2px;
+}
+.find-replace-one,
+.find-replace-all {
+  flex: 0 0 auto;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.find-replace-one:hover,
+.find-replace-all:hover {
+  background: var(--btn-hover);
+}
+
+.find-results {
+  max-height: 240px;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+  margin: 2px -8px -8px;
+  padding: 4px;
+  display: none;
+}
+.find-result {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  padding: 3px 6px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.find-result:hover {
+  background: var(--btn-hover);
+}
+.find-result.is-active {
+  background: var(--btn-hover);
+  box-shadow: inset 2px 0 0 var(--link);
+}
+.find-loc {
+  flex: 0 0 auto;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+.find-snip {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.find-snip-hit {
+  background: var(--find-match-bg, rgba(255, 214, 0, 0.32));
+  color: inherit;
+  border-radius: 2px;
+}
+.find-more {
+  padding: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+}

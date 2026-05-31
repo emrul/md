@@ -59,7 +59,14 @@ export function mountGutterRail(
 
   function computeLeft(): number {
     const tab = tm.active()
-    const content = tab?.dom.editorElement.querySelector<HTMLElement>('.ProseMirror')
+    if (!tab) return left
+    // Anchor to whichever view is actually shown: .ProseMirror is display:none
+    // in source mode, where the CodeMirror scroller is the live content column.
+    // (Items like Find are visible in every mode, not just the editor ones.)
+    const inSource = tab.viewController?.mode === 'source'
+    const content = inSource
+      ? tab.dom.sourceParent.querySelector<HTMLElement>('.cm-editor')
+      : tab.dom.editorElement.querySelector<HTMLElement>('.ProseMirror')
     if (!content) return left
     const contentLeft = content.getBoundingClientRect().left - host.getBoundingClientRect().left
     return Math.max(8, Math.round(contentLeft - BUTTON_GAP - BUTTON_SIZE))
