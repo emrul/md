@@ -204,6 +204,8 @@
   font-size: 12px;
   color: var(--muted);
   padding: 0 8px;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .find-replace-one,
 .find-replace-all {
