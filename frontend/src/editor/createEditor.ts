@@ -2,6 +2,7 @@ import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Document from '@tiptap/extension-document'
 import Link from '@tiptap/extension-link'
+import Code from '@tiptap/extension-code'
 import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
 import CharacterCount from '@tiptap/extension-character-count'
@@ -58,8 +59,15 @@ export function createEditor(opts: CreateEditorOptions): Editor {
     element: opts.element,
     autofocus: 'start',
     extensions: [
-      StarterKit.configure({ codeBlock: false, document: false }),
+      StarterKit.configure({ codeBlock: false, document: false, code: false }),
       HybridDocument,
+      // Inline code, but allowed to coexist with links. The default Code mark
+      // excludes ALL other marks ('_'), which silently dropped the link from a
+      // [`code`](url) link on the hybrid→WYSIWYG round-trip (a real markdown
+      // pattern — e.g. linking a filename rendered as code). Exclude only the
+      // emphasis marks (which can't appear inside literal code) so code+link
+      // survives; code still can't combine with bold/italic/strike.
+      Code.extend({ excludes: 'bold italic strike' }),
       EnhancedCodeBlock.configure({ lowlight, defaultLanguage: null }),
       TaskList,
       TaskItem.configure({ nested: true }),
