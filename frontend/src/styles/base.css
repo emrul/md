@@ -22,3 +22,10 @@ body {
   flex-direction: column;
   height: 100vh;
 }
+
+/* Button labels are chrome, not content — never selectable (WKWebView would
+   otherwise let a drag select the text inside a button). */
+button {
+  -webkit-user-select: none;
+  user-select: none;
+}
