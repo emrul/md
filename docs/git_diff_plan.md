@@ -412,8 +412,104 @@ highlight). Local — no OSS token churn.
 
 ---
 
+## Follow-up: Commit from the history panel
+
+The history panel is read-only today. Add a **single-file commit** affordance so a
+user can checkpoint the open document without leaving the editor. This is the
+**first pro verb that writes to the user's repo** — it grows `GitHistoryService`
+past read-only, so the bias is toward surfacing git's own errors verbatim and
+never guessing.
+
+**Decisions (locked with the user):**
+1. **Save-before-commit** — flush the editor buffer to disk first, then commit.
+   `git` commits what's on disk; committing with an unsaved buffer would capture
+   stale bytes.
+2. **This file only** — a path-limited commit (`-- <rel>`); anything else staged
+   in the index is *not* swept in. Tooltip says "Commit this file".
+3. **Errors → modal** — git failures (missing `user.name`/`user.email`, a
+   rejecting pre-commit hook, an in-progress merge that bars a partial commit,
+   "nothing to commit") can be long and multi-line; show the **full stderr** in a
+   scrollable modal with an OK button, not a one-liner.
+4. **Pro** — committing lives behind the same `change-history` entitlement. OSS
+   users never see a history panel; they save and commit with their own tooling.
+
+**Surface — a commit bar in the existing panel, under the title, shown only when
+the file has uncommitted work** (`dirty || tab.modified`, incl. the never-committed
+case). A one-line subject `<input>` + a **Commit** button (disabled while empty;
+`Cmd+Enter` commits). It sits directly above the read-only "Working tree" row, so
+the flow reads top-to-bottom: *review the diff (⇄) → commit*.
+
+```
+┌─ Change history ───────────────────────┐
+│ [ Commit message…              ] [✓ Commit]   ← only when dirty/untracked
+│ ◐ Working tree   Uncommitted changes ⇄  │   ← existing read-only row
+│ a1b2c3  Fix typo in intro      2h    ⇄  │
+└─────────────────────────────────────────┘
+```
+
+### Go — `md-pro/pro/githistory.go` (add `Commit`)
+```go
+// Commit stages and commits ONLY this file with the given message. The frontend
+// has already saved the buffer, so the working tree holds the current document.
+// Returns git's stderr verbatim on failure (the UI shows it in a modal). Handles
+// the never-committed file too: `git add -- <rel>` first so an untracked path is
+// known, then a path-limited commit ignores anything else staged.
+func (s *GitHistoryService) Commit(filePath, message string) error
+//   guards: entitlement (fail-closed), gitPath != "", trimmed message != "",
+//           dirAndRel ok.
+//   git -C <top> add -- <rel>
+//   git -C <top> commit --cleanup=whitespace -F - -- <rel>   (message on stdin —
+//           no argv escaping; --cleanup=whitespace, NOT strip, so a markdown-
+//           flavored subject like "# Rework intro" isn't dropped as a comment).
+//           On non-zero exit, return stderr (fall back to stdout / err.Error()).
+```
+Needs a small `runInput` helper (mirrors `run`, but pipes stdin and surfaces
+stderr) — the existing `run` discards stderr, which is exactly what we need to
+show here. **Seam:** add `Commit` to `internal/pro-stub/pro/stub.go` (panic body)
+and regenerate bindings (`wails3 generate bindings -f "-tags=pro" -clean=true`).
+
+### Frontend — `md-pro/frontend/src/`
+- **`changeHistory/gitHistory.ts`** — add `commit(filePath, message): Promise<void>`
+  wrapping `$Commit`; it **rejects** with git's message on failure (no `?? ''`
+  swallowing — the caller needs the error).
+- **`changeHistory/railItem.ts`** — render the commit bar in `renderPanel` when
+  `(dirty || tab.modified) && tab.filePath`, before the rows / empty state. Commit
+  handler:
+  1. `await commands.execute('file.save')` (OSS verb; saves the active tab —
+     which is the tracked tab the panel is bound to).
+  2. If `tab.modified` is still true, the save failed/was cancelled (it `alert`s
+     its own error) → abort silently.
+  3. `await commit(tab.filePath, msg)`; on resolve, **invalidate the cache**
+     (`cacheKey = ''`), refetch `history` + `workingStatus`, re-render (new commit
+     at top, "Working tree" row gone). On reject, `showGitError(message)` and
+     re-enable the button. Button shows "Committing…" + disabled during the call.
+- **`changeHistory/modal.ts`** (new) — `showGitError(message)`: a pro-local modal
+  (`.ch-error-modal` overlay) with a scrollable monospace `<pre>` for the stderr
+  and an OK button; Esc / click-backdrop / OK all dismiss. No OSS dependency.
+- **`changeHistory.css`** — `.ch-commit-bar` / `.ch-commit-msg` / `.ch-commit-btn`
+  (+ disabled), `.ch-error-modal` / `.ch-error-body` / `.ch-error-ok`. Local.
+
+### One open sub-decision (need your call)
+**Does the commit bar appear for a never-committed file?** Today an untracked file
+shows the "Not committed yet — no history" empty state and renders no rows. The
+`git add` + path-limited commit handles a first commit fine, so I'd **show the bar
+there too** (commit a brand-new doc in place) and keep the note below it. Say the
+word if you'd rather untracked files stay commit-less in v1.
+
+### Acceptance additions
+- Dirty tracked file → commit bar appears; commit with a message → buffer saved
+  first, new commit appears at top, "Working tree" row clears, working file clean.
+- Empty message → Commit disabled; `Cmd+Enter` commits.
+- Commit with `user.name`/`user.email` unset (or a failing pre-commit hook) → the
+  modal shows git's full stderr; panel unchanged; button re-enabled.
+- Save failure (e.g. read-only path) → no commit attempted.
+- Untracked file (if we keep the bar) → first commit succeeds via `git add`.
+- "This file only": with another file staged, committing the open doc leaves the
+  other file staged/uncommitted.
+
 ## Known limitations / non-v1 gaps
-- Read-only v1: **"restore this version"** and **"copy old version"** are intentional
+- Read-only history viewing; the only write verb is the single-file **commit**
+  above. **"restore this version"** and **"copy old version"** remain intentional
   follow-ups (call out in UI copy if natural).
 - History requires the `git` binary; absent → empty state.
 - **Staleness:** history is fetched on panel open / path change and may be stale

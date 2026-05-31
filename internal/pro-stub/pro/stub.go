@@ -61,3 +61,7 @@ func (s *GitHistoryService) FileAtRef(_, _, _ string) (string, error) {
 func (s *GitHistoryService) WorkingStatus(_ string) (bool, error) {
 	panic("md-pro stub: real module not linked; setup:pro must run before -tags pro builds")
 }
+
+func (s *GitHistoryService) Commit(_, _ string) error {
+	panic("md-pro stub: real module not linked; setup:pro must run before -tags pro builds")
+}

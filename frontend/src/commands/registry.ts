@@ -20,13 +20,16 @@ class Registry {
     return Array.from(this.commands.values())
   }
 
-  execute(id: string, args?: unknown): void {
+  // Returns the handler's result so async verbs can be awaited (e.g. save before
+  // a follow-up action). Existing `void commands.execute(...)` callers are
+  // unaffected — voiding a possible promise is harmless.
+  execute(id: string, args?: unknown): void | Promise<void> {
     const cmd = this.commands.get(id)
     if (!cmd) {
       console.warn(`[commands] unknown command: ${id}`)
       return
     }
-    void cmd.handler(args)
+    return cmd.handler(args)
   }
 }
 
