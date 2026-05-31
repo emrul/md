@@ -138,10 +138,21 @@ func setupUpdater(app *application.App, version string, logs *LogService) {
 	if err := app.Updater.Init(updater.Config{
 		CurrentVersion: version,
 		Providers:      []updater.Provider{gh},
+		Window:         &updater.BuiltinWindow{CSS: updaterWindowCSS},
 	}); err != nil {
 		logs.Warn("updater", "init: "+err.Error())
 	}
 }
+
+// updaterWindowCSS patches the built-in updater window's default styles. Its
+// generic `.u__btn:hover { background: var(--surface-2) }` rule has the same
+// specificity as the primary-button hover rule (which only sets `filter`), so
+// by source order the primary buttons ("Restart & Apply", "Install Update",
+// "Try Again") pick up the near-white --surface-2 background on hover while
+// keeping white --accent-fg text — invisible label in light mode. Re-assert the
+// accent background for primary buttons on hover. Injected after the template's
+// own styles, so it wins.
+const updaterWindowCSS = `.u__btn--primary:hover:not(:disabled){background:var(--accent);color:var(--accent-fg);filter:brightness(1.08);}`
 
 // matchReleaseAsset selects the self-updatable asset for the running platform.
 // Returns the index into assets, or -1 when none fits.
