@@ -3,6 +3,7 @@ import { DOMParser as PMDOMParser } from '@tiptap/pm/model'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { TextSelection } from '@tiptap/pm/state'
 import { closeHistory } from '@tiptap/pm/history'
+import { SOURCE_RAW_STAMP } from './extensions/SourceRaw'
 
 // The editor's *rendering* mode. (The user-facing third mode, "source", is a
 // CodeMirror overlay owned by the ViewController, not a schema concern.) Both
@@ -67,6 +68,10 @@ function applyReplace(editor: Editor, content: PMNode[], addToHistory: boolean):
   const { state, view } = editor
   const from = state.selection.from
   const tr = state.tr.replaceWith(0, state.doc.content.size, content)
+  // A mode-switch conversion is content-neutral, not an edit: tag it so the
+  // sourceRaw invalidator doesn't strip the raw we're stamping on (and vice
+  // versa, the convert-to-hybrid round-trip stays clean). See SourceRaw.ts.
+  tr.setMeta(SOURCE_RAW_STAMP, true)
   if (addToHistory) {
     // Seal the previous history event so the switch is its own undo step and
     // never merges with adjacent typing.
@@ -92,8 +97,17 @@ export function convertToWysiwyg(editor: Editor, addToHistory = true): void {
       changed = true
       const raw = node.textContent
       const parsed = raw.trim() ? nodesFromMarkdown(editor, raw) : []
-      if (parsed.length) parsed.forEach((n) => content.push(n))
-      else content.push(schema.nodes.paragraph.create())
+      // Stamp the block's exact source onto a single paragraph/heading so an
+      // unedited block round-trips byte-for-byte (manual line wraps, _emphasis_
+      // …). Multi-node or non-text parses fall back to the normal reflow.
+      const only = parsed.length === 1 ? parsed[0] : null
+      if (only && (only.type.name === 'paragraph' || only.type.name === 'heading')) {
+        content.push(only.type.create({ ...only.attrs, sourceRaw: raw }, only.content, only.marks))
+      } else if (parsed.length) {
+        parsed.forEach((n) => content.push(n))
+      } else {
+        content.push(schema.nodes.paragraph.create())
+      }
     } else {
       content.push(node)
     }
@@ -112,7 +126,10 @@ export function convertToHybrid(editor: Editor, addToHistory = true): void {
   doc.forEach((node) => {
     if (node.type.name === 'paragraph' || node.type.name === 'heading') {
       changed = true
-      const md = blockToMarkdown(editor, node)
+      // Prefer the cached raw for an unedited block so its exact source survives;
+      // an edited block (sourceRaw cleared by the invalidator) re-serializes.
+      const raw = node.attrs.sourceRaw as string | null
+      const md = raw != null ? raw : blockToMarkdown(editor, node)
       content.push(md ? sbType.create(null, schema.text(md)) : sbType.create())
     } else {
       content.push(node)

@@ -17,6 +17,7 @@ import { EnhancedCodeBlock } from './extensions/CodeBlock'
 import { lowlight } from './extensions/lowlight'
 import { MathInline, MathBlock } from './extensions/Math'
 import { SourceBlock } from './extensions/SourceBlock'
+import { RawParagraph, RawHeading, SourceRawInvalidator } from './extensions/SourceRaw'
 import { LinkOpen } from './extensions/LinkOpen'
 import { LinkPreview } from './extensions/LinkPreview'
 import { convertToWysiwyg } from './mode'
@@ -59,8 +60,19 @@ export function createEditor(opts: CreateEditorOptions): Editor {
     element: opts.element,
     autofocus: 'start',
     extensions: [
-      StarterKit.configure({ codeBlock: false, document: false, code: false }),
+      StarterKit.configure({
+        codeBlock: false,
+        document: false,
+        code: false,
+        // Replaced by raw-preserving variants so an unedited block keeps its
+        // exact source markdown across a hybrid⇄WYSIWYG switch. See SourceRaw.ts.
+        paragraph: false,
+        heading: false,
+      }),
       HybridDocument,
+      RawParagraph,
+      RawHeading,
+      SourceRawInvalidator,
       // Inline code, but allowed to coexist with links. The default Code mark
       // excludes ALL other marks ('_'), which silently dropped the link from a
       // [`code`](url) link on the hybrid→WYSIWYG round-trip (a real markdown
