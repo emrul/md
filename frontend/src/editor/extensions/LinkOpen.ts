@@ -46,15 +46,33 @@ export const LinkOpen = Extension.create({
   name: 'linkOpen',
 
   addProseMirrorPlugins() {
+    const ABS = /^(https?|mailto|tel):/i
     return [
       new Plugin({
         props: {
-          handleClick(view, pos, event) {
-            if (!(event.metaKey || event.ctrlKey)) return false
-            const href = linkHrefAt(view.state, pos)
-            if (!href || !/^(https?|mailto|tel):/i.test(href)) return false
-            void Browser.OpenURL(href).catch(() => {})
-            return true
+          handleDOMEvents: {
+            // ⌘/Ctrl-click opens absolute links in the system browser. We hook
+            // the real DOM click (not PM's handleClick) for two reasons: a
+            // WYSIWYG link renders as a real <a>, so we read its href straight
+            // off the event target; and we preventDefault before WebKit follows
+            // the anchor itself. That native anchor handling is why WYSIWYG links
+            // weren't opening while hybrid source-block links (plain text, no
+            // <a>) were — PM's mousedown/up-derived handleClick never fired
+            // cleanly for the anchor.
+            click(view, event) {
+              if (!(event.metaKey || event.ctrlKey)) return false
+              const anchor = (event.target as HTMLElement | null)?.closest('a[href]')
+              let href = anchor?.getAttribute('href') ?? null
+              if (!href) {
+                // Source-block links are literal text — resolve via the position.
+                const at = view.posAtCoords({ left: event.clientX, top: event.clientY })
+                if (at) href = linkHrefAt(view.state, at.pos)
+              }
+              if (!href || !ABS.test(href)) return false
+              event.preventDefault()
+              void Browser.OpenURL(href).catch(() => {})
+              return true
+            },
           },
         },
       }),

@@ -138,6 +138,10 @@
   color: var(--link);
   text-decoration: underline;
   text-underline-offset: 2px;
+  /* Rendered links (WYSIWYG, table/list cells) are <a> inside contenteditable,
+     which otherwise shows the text I-beam. Hybrid source-block links are plain
+     text, not <a>, so they correctly keep the I-beam. */
+  cursor: pointer;
 }
 
 .ProseMirror hr {
