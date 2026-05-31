@@ -23,6 +23,7 @@ import { LinkPreview } from './extensions/LinkPreview'
 import { convertToWysiwyg } from './mode'
 import { HeadingCycle } from './extensions/HeadingCycle'
 import { SlashMenu } from './extensions/slash/SlashMenu'
+import { MarkdownPaste } from './extensions/MarkdownPaste'
 import { TreeDropHandler } from './extensions/treeDropHandler'
 import { FindHighlight } from './find/FindHighlight'
 import './extensions/task-list.css'
@@ -93,6 +94,7 @@ export function createEditor(opts: CreateEditorOptions): Editor {
       SourceBlock,
       HeadingCycle,
       SlashMenu,
+      MarkdownPaste,
       FindHighlight,
       TreeDropHandler.configure({
         getSourcePath: opts.getSourcePath ?? (() => null),

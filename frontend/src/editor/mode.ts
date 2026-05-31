@@ -33,7 +33,9 @@ function markdownIO(editor: Editor): MarkdownIO {
 }
 
 // markdown text → ProseMirror block nodes (markdown → HTML → PM via the schema).
-function nodesFromMarkdown(editor: Editor, raw: string): PMNode[] {
+// Exported so the paste path (and hybrid slicing) can parse a markdown fragment
+// without mutating the live editor.
+export function nodesFromMarkdown(editor: Editor, raw: string): PMNode[] {
   const html = markdownIO(editor).parser.parse(raw)
   const tmp = document.createElement('div')
   tmp.innerHTML = html

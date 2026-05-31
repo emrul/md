@@ -7,6 +7,7 @@ import '../styles/base.css'
 import { createEditor } from '../editor/createEditor'
 import { getMarkdown, setMarkdown } from '../editor/serialize/markdown'
 import { linkHrefAt } from '../editor/extensions/LinkOpen'
+import { replaceSelectionWithMarkdown } from '../editor/extensions/MarkdownPaste'
 import { getRenderMode, switchRenderMode, type RenderMode } from '../editor/mode'
 
 // Minimal Wails-runtime stub so any binding-importing module doesn't throw if
@@ -56,6 +57,12 @@ const harness = {
   // Insert a source block (the spike) at the cursor.
   insertSourceBlock(text?: string): void {
     editor.chain().focus().insertSourceBlock(text).run()
+  },
+  // Drive the markdown-paste transformation at the cursor (the same code the
+  // paste handler runs, minus the real ClipboardEvent a headless driver can't
+  // synthesize). Returns whether it handled the text.
+  pasteMarkdown(text: string): boolean {
+    return replaceSelectionWithMarkdown(editor.view, editor, text)
   },
   // Resolve the link target at a document position (cmd/ctrl-click logic).
   linkHrefAt(pos: number): string | null {
