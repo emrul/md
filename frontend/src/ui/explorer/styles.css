@@ -153,6 +153,10 @@
   gap: 4px;
   margin-left: 4px;
   overflow: hidden;
+  /* The whole cluster is the dropdown trigger (see index.ts). */
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .explorer-header-name {
@@ -196,6 +200,7 @@
   transition: background-color 100ms, color 100ms, transform 120ms;
 }
 .explorer-header-chevron:hover,
+.explorer-header-root:hover .explorer-header-chevron,
 .explorer-header-chevron.is-open {
   background: var(--btn-hover);
   color: var(--text);

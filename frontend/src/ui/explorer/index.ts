@@ -333,7 +333,10 @@ export function mountExplorer(state: ExplorerState, tm: TabManager): ExplorerMou
     headerChevron.classList.remove('is-open')
   }
 
-  headerChevron.addEventListener('click', (ev) => {
+  // The whole name + git + chevron cluster is the dropdown hit area, not just
+  // the chevron — clicking the folder name opens it too. (The chevron button's
+  // own clicks bubble up here, so it has no separate handler.)
+  headerRoot.addEventListener('click', (ev) => {
     ev.stopPropagation()
     if (dropdown) closeDropdown()
     else openDropdown()
@@ -449,7 +452,7 @@ export function mountExplorer(state: ExplorerState, tm: TabManager): ExplorerMou
     // trigger. We bail before the overlay-close check so a click that
     // dismisses just the popover doesn't also collapse the panel.
     if (dropdown && target) {
-      if (!dropdown.contains(target) && !headerChevron.contains(target)) {
+      if (!dropdown.contains(target) && !headerRoot.contains(target)) {
         closeDropdown()
       }
     }
