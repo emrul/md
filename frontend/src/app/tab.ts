@@ -54,11 +54,17 @@ export class Tab {
    */
   pendingContent: string | null = null
   /**
-   * History depth at the last "saved" point: load or successful write. The
-   * dirty flag is derived from `undoDepth(editor.state) !== savedAtDepth`, so
-   * undoing back to this depth correctly reports a clean tab.
+   * History depth at the last "saved" point: load or successful write. Used as
+   * a cheap fast-path for the clean check (matching depth ⇒ definitely clean).
    */
   savedAtDepth = 0
+  /**
+   * The markdown serialized at the last save/load. Dirty is ultimately defined
+   * against this (markdown is the source of truth) — not against history depth —
+   * so a render-mode switch, which is an undoable transaction but a content-
+   * neutral round-trip, doesn't falsely mark the tab dirty.
+   */
+  private savedMarkdown = ''
   private listeners: Set<Listener> = new Set()
 
   constructor(
@@ -101,20 +107,25 @@ export class Tab {
   markLoaded(): void {
     clearEditorHistory(this.editor)
     this.savedAtDepth = 0
+    this.savedMarkdown = this.getCurrentMarkdown()
     this.setModified(false)
   }
 
-  /** Called after a successful write to disk. Pins the current history depth
-   * as the new clean baseline; undoing back to it reports clean again. */
+  /** Called after a successful write to disk. Pins the current depth + markdown
+   * as the new clean baseline. */
   markSaved(): void {
     this.savedAtDepth = undoDepth(this.editor.state)
+    this.savedMarkdown = this.getCurrentMarkdown()
     this.setModified(false)
   }
 
-  /** True when the editor's current history depth matches the last save/load —
-   * i.e. the user has either made no edits or has undone back to that point. */
+  /** True when the document matches the last save/load. The history-depth match
+   * is a cheap fast-path (definitely clean); otherwise fall back to comparing
+   * the serialized markdown, so content-neutral transactions like a render-mode
+   * switch (an undoable round-trip) don't read as dirty. */
   isAtSavedState(): boolean {
-    return undoDepth(this.editor.state) === this.savedAtDepth
+    if (undoDepth(this.editor.state) === this.savedAtDepth) return true
+    return this.getCurrentMarkdown() === this.savedMarkdown
   }
 
   onChange(fn: Listener): () => void {
