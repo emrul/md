@@ -278,8 +278,9 @@ export function mountFind(
   modeToggle.addEventListener('click', (e) => {
     e.stopPropagation()
     findState.setMode(findState.mode === 'find' ? 'replace' : 'find')
-    if (findState.mode === 'replace') replaceInput.focus()
-    else queryInput.focus()
+    // Keep focus in the query input — switching modes shouldn't yank the caret
+    // out of the term you're refining.
+    queryInput.focus()
   })
 
   optButtons.forEach((b) => {
