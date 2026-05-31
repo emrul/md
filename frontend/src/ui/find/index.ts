@@ -45,7 +45,7 @@ export function mountFind(
   panel.setAttribute('aria-label', 'Find and replace')
   panel.innerHTML = `
     <div class="find-row find-row-query">
-      <button type="button" class="find-mode-toggle" title="Toggle replace">Find<span class="find-caret">▾</span></button>
+      <button type="button" class="find-mode-toggle" title="Toggle replace"><span class="find-mode-label">Find</span><svg class="find-caret" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg></button>
       <div class="find-input-wrap">
         <input type="text" class="find-input find-query" placeholder="Find" aria-label="Find" spellcheck="false" />
         <div class="find-options">
@@ -73,6 +73,7 @@ export function mountFind(
   const replaceInput = panel.querySelector<HTMLInputElement>('.find-replace')!
   const counter = panel.querySelector<HTMLElement>('.find-counter')!
   const modeToggle = panel.querySelector<HTMLButtonElement>('.find-mode-toggle')!
+  const modeLabel = panel.querySelector<HTMLElement>('.find-mode-label')!
   const results = panel.querySelector<HTMLElement>('.find-results')!
   const optButtons = Array.from(panel.querySelectorAll<HTMLButtonElement>('.find-opt'))
   const prevBtn = panel.querySelector<HTMLButtonElement>('.find-prev')!
@@ -165,7 +166,7 @@ export function mountFind(
     const r = findState.result
     const replace = findState.mode === 'replace'
     panel.classList.toggle('is-replace', replace)
-    modeToggle.firstChild!.textContent = replace ? 'Replace' : 'Find'
+    modeLabel.textContent = replace ? 'Replace' : 'Find'
 
     if (queryInput.value !== findState.text) queryInput.value = findState.text
     if (replaceInput.value !== findState.replacementText) {
