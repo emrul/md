@@ -47,6 +47,43 @@ async function getMermaid(): Promise<MermaidApi | null> {
   return _mermaid
 }
 
+// Diagram-type sniff: the first keyword after optional YAML frontmatter
+// (--- … ---) and %% directives/comments. Gantt charts are inherently wide, so
+// they default to actual-size + horizontal scroll rather than being shrunk.
+function isGanttSource(code: string): boolean {
+  const lines = code.split('\n')
+  let i = 0
+  if (lines[i]?.trim() === '---') {
+    i++
+    while (i < lines.length && lines[i].trim() !== '---') i++
+    i++ // past the closing fence
+  }
+  for (; i < lines.length; i++) {
+    const t = lines[i].trim()
+    if (t === '' || t.startsWith('%%')) continue
+    return /^gantt\b/.test(t)
+  }
+  return false
+}
+
+// Intrinsic (unscaled) width of a rendered mermaid SVG, in px. Prefers the
+// viewBox / width attribute over getBoundingClientRect, which would report the
+// already-shrunk width once max-width:100% has been applied.
+function naturalSvgWidth(svg: SVGSVGElement): number {
+  const vb = svg.viewBox?.baseVal
+  if (vb && vb.width > 0) return vb.width
+  const attr = parseFloat(svg.getAttribute('width') || '')
+  if (!Number.isNaN(attr) && attr > 0) return attr
+  return svg.getBoundingClientRect().width
+}
+
+// Four corner brackets pointing out (expand → show at actual size) / in (fit).
+// The icon reflects the action available, not the current mode.
+const SIZE_ICON_EXPAND =
+  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2H2v4"/><path d="M10 2h4v4"/><path d="M10 14h4v-4"/><path d="M6 14H2v-4"/></svg>'
+const SIZE_ICON_FIT =
+  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 6h4V2"/><path d="M14 6h-4V2"/><path d="M14 10h-4v4"/><path d="M2 10h4v4"/></svg>'
+
 const CODE_INDENT = '  '
 
 export const EnhancedCodeBlock = CodeBlockLowlight.extend({
@@ -95,6 +132,28 @@ export const EnhancedCodeBlock = CodeBlockLowlight.extend({
       preview.title = 'Double-click to edit'
       pre.appendChild(codeEl)
 
+      // Per-diagram fit ↔ actual-size toggle (attached to the block, not the
+      // scrolling preview, so it stays pinned in the corner). Hidden until a
+      // render proves the diagram is wider than the column.
+      const toggle = document.createElement('button')
+      toggle.type = 'button'
+      toggle.className = 'mermaid-size-toggle'
+      toggle.setAttribute('contenteditable', 'false')
+      toggle.style.display = 'none'
+      toggle.addEventListener('mousedown', (e) => {
+        // Don't let the click reach PM (selection) or start a text selection.
+        e.preventDefault()
+        e.stopPropagation()
+      })
+      toggle.addEventListener('click', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        userOverrode = true
+        sizeMode = sizeMode === 'actual' ? 'fit' : 'actual'
+        preview.classList.toggle('is-actual-size', sizeMode === 'actual')
+        setToggleAffordance(sizeMode)
+      })
+
       const setCodeLangClass = (lang: string | null | undefined): void => {
         codeEl.className = lang ? `language-${lang} hljs` : 'hljs'
       }
@@ -105,6 +164,52 @@ export const EnhancedCodeBlock = CodeBlockLowlight.extend({
       let lastLang: string | null = null
       let lastText: string | null = null
       let destroyed = false
+      let isGantt = false
+      let sizeMode: 'fit' | 'actual' = 'fit'
+      let userOverrode = false // sticky once the user picks a mode for this diagram
+
+      const setToggleAffordance = (mode: 'fit' | 'actual'): void => {
+        if (mode === 'actual') {
+          toggle.innerHTML = SIZE_ICON_FIT
+          toggle.title = 'Fit to width'
+          toggle.setAttribute('aria-label', 'Fit diagram to width')
+        } else {
+          toggle.innerHTML = SIZE_ICON_EXPAND
+          toggle.title = 'Show at actual size'
+          toggle.setAttribute('aria-label', 'Show diagram at actual size')
+        }
+      }
+
+      // After a render, decide whether this diagram is wider than the column. If
+      // so, expose the toggle and pick a mode (gantt → actual size, others →
+      // fit), unless the user has already chosen one. If it fits, there's nothing
+      // to toggle — hide the control and stay in fit.
+      const applySizing = (): void => {
+        const svg = preview.querySelector('svg') as SVGSVGElement | null
+        if (!svg) {
+          toggle.style.display = 'none'
+          preview.classList.remove('is-actual-size')
+          return
+        }
+        const cs = getComputedStyle(preview)
+        const avail =
+          preview.clientWidth -
+          parseFloat(cs.paddingLeft || '0') -
+          parseFloat(cs.paddingRight || '0')
+        const natural = naturalSvgWidth(svg)
+        const wide = natural > 0 && avail > 0 && natural > avail + 1
+        toggle.style.display = wide ? '' : 'none'
+        const mode: 'fit' | 'actual' = !wide
+          ? 'fit'
+          : userOverrode
+            ? sizeMode
+            : isGantt
+              ? 'actual'
+              : 'fit'
+        sizeMode = mode
+        preview.classList.toggle('is-actual-size', mode === 'actual')
+        setToggleAffordance(mode)
+      }
 
       const doRender = (code: string): void => {
         if (preview.innerHTML === '') preview.textContent = 'Rendering…'
@@ -115,6 +220,7 @@ export const EnhancedCodeBlock = CodeBlockLowlight.extend({
           if (!md) {
             preview.textContent = '⚠ Mermaid unavailable'
             preview.classList.add('is-error')
+            toggle.style.display = 'none'
             return
           }
           const id = 'mmd' + ++mermaidSeq
@@ -123,6 +229,8 @@ export const EnhancedCodeBlock = CodeBlockLowlight.extend({
             if (destroyed) return
             preview.innerHTML = svg
             preview.classList.remove('is-error')
+            isGantt = isGanttSource(code)
+            applySizing()
           } catch (err) {
             if (destroyed) return
             const msg = String(err)
@@ -130,6 +238,8 @@ export const EnhancedCodeBlock = CodeBlockLowlight.extend({
               .trim()
             preview.textContent = '⚠ Mermaid error: ' + msg
             preview.classList.add('is-error')
+            preview.classList.remove('is-actual-size')
+            toggle.style.display = 'none'
             console.error('[mermaid]', err)
           }
         })
@@ -145,6 +255,7 @@ export const EnhancedCodeBlock = CodeBlockLowlight.extend({
 
         if (lang === 'mermaid') {
           if (!wrapper.contains(preview)) wrapper.prepend(preview)
+          if (!wrapper.contains(toggle)) wrapper.appendChild(toggle)
           wrapper.className = 'mermaid-block'
           setCodeLangClass('mermaid')
           if (!langChanged && !textChanged) return
@@ -154,6 +265,7 @@ export const EnhancedCodeBlock = CodeBlockLowlight.extend({
         } else {
           if (langChanged) {
             preview.remove()
+            toggle.remove()
             wrapper.className = ''
             setCodeLangClass(lang)
             if (renderTimer) {
@@ -216,6 +328,7 @@ export const EnhancedCodeBlock = CodeBlockLowlight.extend({
           const target = event.target as Node | null
           if (!target) return false
           if (preview.contains(target) || target === preview) return true
+          if (toggle.contains(target) || target === toggle) return true
           return false
         },
         destroy() {

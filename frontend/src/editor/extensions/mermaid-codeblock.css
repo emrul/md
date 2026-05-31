@@ -1,4 +1,5 @@
 .mermaid-block {
+  position: relative; /* anchors the size toggle so it stays put while scrolling */
   margin: 1rem 0;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -11,13 +12,76 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
+  overflow-x: auto; /* wide diagrams scroll instead of shrinking text to nothing */
   cursor: pointer;
   user-select: none;
 }
 
+/* Fit mode (default for most diagrams): scale down to the column width. */
 .mermaid-preview svg {
   max-width: 100%;
   height: auto;
+}
+
+/* Actual-size mode (default for gantt; opt-in elsewhere): render at natural
+   width and scroll. Left-align so the scroll start stays reachable — a centered
+   flex item wider than its container clips its own left edge. */
+.mermaid-preview.is-actual-size {
+  justify-content: flex-start;
+}
+.mermaid-preview.is-actual-size svg {
+  max-width: none;
+  /* A flex item shrinks to fit its container even with max-width:none, which
+     would defeat the whole point — opt out so the SVG keeps its natural width
+     and the preview scrolls horizontally instead. */
+  flex-shrink: 0;
+}
+
+/* Fit ↔ actual-size toggle. Only attached to diagrams wide enough that the two
+   modes differ; revealed on hover/focus so it doesn't clutter the diagram. */
+.mermaid-size-toggle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none; /* invisible → also non-clickable */
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.08);
+  transition: opacity 120ms, color 120ms, background-color 120ms;
+}
+.mermaid-block:hover .mermaid-size-toggle,
+.mermaid-size-toggle:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.mermaid-size-toggle:hover {
+  background: var(--btn-hover);
+  color: var(--text);
+}
+.mermaid-size-toggle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.mermaid-size-toggle svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+/* No size toggle while editing the source (the preview is hidden then). */
+.mermaid-block.is-editing .mermaid-size-toggle {
+  display: none;
 }
 
 .mermaid-preview.is-error {
