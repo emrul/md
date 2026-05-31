@@ -11,7 +11,7 @@
 		<key>CFBundleIconName</key>
 		<string>appicon</string>
 		<key>CFBundleIdentifier</key>
-		<string>com.mycompany.myproduct</string>
+		<string>com.emrul.md</string>
 		<key>CFBundleName</key>
 		<string>MarkdownMD</string>
 		<key>CFBundlePackageType</key>

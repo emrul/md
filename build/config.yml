@@ -7,7 +7,7 @@ version: '3'
 info:
   companyName: "Emrul Islam" # The name of the company
   productName: "MarkdownMD" # The name of the application
-  productIdentifier: "com.mycompany.myproduct" # The unique product identifier
+  productIdentifier: "com.emrul.md" # The unique product identifier
   description: "A program that does X" # The application description
   copyright: "© 2026, Emrul Islam" # Copyright text
   comments: "Some Product Comments" # Comments
