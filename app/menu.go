@@ -10,7 +10,7 @@ import (
 // buildAppMenu constructs the native application menu. Every non-role item
 // emits a "command" event carrying the command-registry ID, so the frontend
 // stays the single source of truth for what each action does.
-func buildAppMenu(app *application.App) *application.Menu {
+func buildAppMenu(app *application.App, version string) *application.Menu {
 	menu := app.NewMenu()
 
 	if runtime.GOOS == "darwin" {
@@ -41,14 +41,6 @@ func buildAppMenu(app *application.App) *application.Menu {
 	addCmd(app, file, "Save As…", "CmdOrCtrl+Shift+s", "file.saveAs")
 	file.AddSeparator()
 	addCmd(app, file, "Close Tab", "CmdOrCtrl+w", "tab.close")
-	// "Check for Updates…" lives in the macOS App menu (built above). Windows/
-	// Linux have no app menu, so keep it in File there. Go-side action (not a
-	// frontend command): CheckAndInstall opens the update window, checks GitHub,
-	// and downloads/stages a newer release if one is found.
-	if runtime.GOOS != "darwin" {
-		file.AddSeparator()
-		file.Add("Check for Updates…").OnClick(checkForUpdates(app))
-	}
 
 	edit := menu.AddSubmenu("Edit")
 	addCmd(app, edit, "Undo", "CmdOrCtrl+z", "edit.undo")
@@ -92,9 +84,33 @@ func buildAppMenu(app *application.App) *application.Menu {
 	if runtime.GOOS == "darwin" {
 		menu.AddRole(application.WindowMenu)
 		menu.AddRole(application.HelpMenu)
+	} else {
+		// Windows/Linux have no app menu, so "About" and "Check for Updates…"
+		// belong in Help (the platform-conventional home) rather than orphaned
+		// in File. On macOS both live in the app menu, built above.
+		help := menu.AddSubmenu("Help")
+		help.Add("Check for Updates…").OnClick(checkForUpdates(app))
+		help.AddSeparator()
+		help.Add("About MarkdownMD").OnClick(showAbout(app, version))
 	}
 
 	return menu
+}
+
+// showAbout displays a simple About dialog on Windows/Linux, where there's no
+// native application About panel (macOS uses the About role in the app menu).
+// Includes the build version so users can report it or compare against releases.
+func showAbout(app *application.App, version string) func(*application.Context) {
+	return func(*application.Context) {
+		v := version
+		if v == "" {
+			v = "dev"
+		}
+		app.Dialog.Info().
+			SetTitle("About MarkdownMD").
+			SetMessage("MarkdownMD\nVersion " + v + "\n\nA Markdown editor.").
+			Show()
+	}
 }
 
 // registerTabContextMenu attaches the right-click menus used by tab strip

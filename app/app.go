@@ -78,7 +78,7 @@ func Run(opts Options) error {
 
 	setupUpdater(app, opts.Version, logs)
 
-	app.Menu.Set(buildAppMenu(app))
+	app.Menu.Set(buildAppMenu(app, opts.Version))
 	registerTabContextMenu(app)
 	registerExplorerContextMenus(app)
 	if opts.OnReady != nil {
