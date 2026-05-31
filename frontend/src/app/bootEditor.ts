@@ -22,12 +22,20 @@ import { mountCodeBlockLangPicker } from '../ui/codeBlockLangPicker'
 import { mountTableToolbar } from '../ui/tableToolbar'
 import { bindCanvasClick } from './canvasClick'
 
+// Breadcrumb via the global set by bootDiagnostics — NOT a static import, which
+// would pull the entry chunk into this dynamically-imported chunk and deadlock
+// V8 on the entry's top-level await. See bootDiagnostics.ts.
+const markBootStep = (step: string): void => globalThis.__mdBootStep?.(step)
+
 export async function bootEditorWindow(): Promise<void> {
+  markBootStep('bootEditor: entered')
   const host = document.getElementById('tab-host')
   if (!host) throw new Error('#tab-host mount point missing')
 
   // Load preferences before anything else — feature flags affect mounting.
+  markBootStep('bootEditor: awaiting loadPreferences()')
   const userPrefs = await loadPreferences()
+  markBootStep('bootEditor: loadPreferences() done')
   if (!userPrefs.useTabs) document.body.classList.add('no-tabs')
 
   let toolbar: { refresh: () => void } | null = null
@@ -117,6 +125,7 @@ export async function bootEditorWindow(): Promise<void> {
   mountExplorer(explorerState, tm)
   toc = mountToc(tm, explorerState, host, rail)
   for (const f of features()) f.mount?.(featureCtx)
+  markBootStep('bootEditor: core UI mounted (toolbar/statusbar/explorer)')
 
   Events.On('command', (ev) => {
     // App-menu items emit a bare string ID. Context-menu items that need an
@@ -132,7 +141,9 @@ export async function bootEditorWindow(): Promise<void> {
 
   // Wire native context-menu events from menu.go. Filtering by window name keeps
   // other windows' right-clicks from acting in this one.
+  markBootStep('bootEditor: awaiting Window.Name()')
   const myWindowName = await Window.Name()
+  markBootStep('bootEditor: Window.Name() done')
   bindTabContextMenuEvents(tm, myWindowName)
 
   /**
@@ -193,6 +204,7 @@ export async function bootEditorWindow(): Promise<void> {
 
   // Boot the initial tabs. Priority: restored session (?restore=<id>), then a
   // single file from "Open in New Window" (?file=<path>), else one Untitled.
+  markBootStep('bootEditor: opening initial tabs')
   const params = new URLSearchParams(window.location.search)
   const restoreId = params.get('restore')
   const initialFile = params.get('file')
@@ -213,4 +225,5 @@ export async function bootEditorWindow(): Promise<void> {
   refreshAll()
 
   installSessionReporting(myWindowName)
+  markBootStep('bootEditor: done')
 }

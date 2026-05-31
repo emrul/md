@@ -1,5 +1,6 @@
 import '../styles/tokens.css'
 import '../styles/base.css'
+import { markBootStep } from './bootDiagnostics'
 
 /**
  * Boot the correct window UI based on the URL flag. Shared by the free entry
@@ -12,6 +13,7 @@ import '../styles/base.css'
  * window doesn't pay for TipTap, and vice versa.
  */
 export async function boot(): Promise<void> {
+  markBootStep('boot: entered')
   const params = new URLSearchParams(window.location.search)
   const isLogsWindow = params.get('logs') === '1'
 
@@ -22,7 +24,9 @@ export async function boot(): Promise<void> {
     const { mount } = await import('../ui/logsWindow')
     await mount()
   } else {
+    markBootStep('boot: importing bootEditor chunk')
     const { bootEditorWindow } = await import('./bootEditor')
+    markBootStep('boot: bootEditor chunk imported')
     await bootEditorWindow()
   }
 }
