@@ -10,6 +10,7 @@ export {
 } from '../../bindings/markdownmd/app/fileservice.js'
 
 export {
+  MarkEditorReady,
   NewEmptyWindow,
   OpenInNewWindow,
   OpenLogsWindow,

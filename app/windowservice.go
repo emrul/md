@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -33,6 +35,19 @@ var firstLaunch bool
 // appShouldQuit vetoes termination while this is set.
 var restorePromptPending atomic.Bool
 
+// openFileRoutingReady flips once startup has spawned its initial editor
+// window(s). Launch Services can deliver open-file events before that point, so
+// early paths are queued and then converted into the initial window URL.
+var openFileRoutingReady atomic.Bool
+
+var queuedOpenFilesMu sync.Mutex
+var queuedOpenFiles []string
+
+var readyEditorWindowsMu sync.Mutex
+var readyEditorWindows = map[string]bool{}
+
+const openFilesEventName = "file:openPaths"
+
 // appShouldQuit backs application.Options.ShouldQuit. It only blocks quitting
 // during the restore-prompt gap above; in all normal use it returns true, so ⌘Q
 // and closing the last window quit as usual.
@@ -56,7 +71,7 @@ func (s *WindowService) OpenInNewWindow(filePath string) error {
 	if filePath == "" {
 		return errors.New("file path required")
 	}
-	spawnEditorWindow("/?file=" + url.QueryEscape(filePath))
+	spawnEditorWindow(filesLaunchURL([]string{filePath}))
 	return nil
 }
 
@@ -72,6 +87,21 @@ func (s *WindowService) NewEmptyWindow() error {
 // Logs window does not participate in session restore.
 func (s *WindowService) OpenLogsWindow() error {
 	spawnPlainWindow("/?logs=1")
+	return nil
+}
+
+// MarkEditorReady is called by the frontend once its file-open event listener
+// and initial tabs are installed. Only then is it safe for native open-file
+// events to target this window.
+func (s *WindowService) MarkEditorReady(windowName string) error {
+	if windowName == "" {
+		return errors.New("window name required")
+	}
+	window, ok := application.Get().Window.GetByName(windowName)
+	if !ok {
+		return errors.New("window not found")
+	}
+	markEditorWindowReady(window)
 	return nil
 }
 
@@ -144,6 +174,151 @@ func spawnExamplesWindow() {
 	spawnEditorWindow("/?examples=1")
 }
 
+func filesLaunchURL(paths []string) string {
+	values := url.Values{}
+	for _, path := range paths {
+		if path == "" {
+			continue
+		}
+		values.Add("file", path)
+	}
+	if len(values) == 0 {
+		return "/"
+	}
+	return "/?" + values.Encode()
+}
+
+func handleExternalOpenFile(filePath string) {
+	if filePath == "" {
+		return
+	}
+	if !openFileRoutingReady.Load() {
+		queueOpenFiles([]string{filePath})
+		return
+	}
+	if !routeOpenFilesToEditor([]string{filePath}) {
+		if hasEditorWindow() {
+			queueOpenFiles([]string{filePath})
+			return
+		}
+		spawnEditorWindow(filesLaunchURL([]string{filePath}))
+	}
+}
+
+func queueOpenFiles(paths []string) {
+	queuedOpenFilesMu.Lock()
+	defer queuedOpenFilesMu.Unlock()
+	for _, path := range paths {
+		if path != "" {
+			queuedOpenFiles = append(queuedOpenFiles, path)
+		}
+	}
+}
+
+func takeQueuedOpenFiles() []string {
+	queuedOpenFilesMu.Lock()
+	defer queuedOpenFilesMu.Unlock()
+	if len(queuedOpenFiles) == 0 {
+		return nil
+	}
+	paths := append([]string(nil), queuedOpenFiles...)
+	queuedOpenFiles = nil
+	return paths
+}
+
+func spawnQueuedOpenFiles() bool {
+	paths := takeQueuedOpenFiles()
+	if len(paths) == 0 {
+		return false
+	}
+	spawnEditorWindow(filesLaunchURL(paths))
+	return true
+}
+
+func flushQueuedOpenFiles() {
+	paths := takeQueuedOpenFiles()
+	if len(paths) == 0 {
+		return
+	}
+	if !routeOpenFilesToEditor(paths) {
+		if hasEditorWindow() {
+			queueOpenFiles(paths)
+			return
+		}
+		spawnEditorWindow(filesLaunchURL(paths))
+	}
+}
+
+func routeOpenFilesToEditor(paths []string) bool {
+	target := preferredEditorWindow()
+	if target == nil {
+		return false
+	}
+	target.Show()
+	target.Focus()
+	target.EmitEvent(openFilesEventName, paths)
+	return true
+}
+
+func preferredEditorWindow() application.Window {
+	app := application.Get()
+	if current := app.Window.Current(); isReadyEditorWindow(current) {
+		return current
+	}
+
+	var fallback application.Window
+	for _, window := range app.Window.GetAll() {
+		if !isReadyEditorWindow(window) {
+			continue
+		}
+		if window.IsFocused() {
+			return window
+		}
+		if fallback == nil || window.IsVisible() {
+			fallback = window
+		}
+	}
+	return fallback
+}
+
+func hasEditorWindow() bool {
+	for _, window := range application.Get().Window.GetAll() {
+		if isEditorWindow(window) {
+			return true
+		}
+	}
+	return false
+}
+
+func isEditorWindow(window application.Window) bool {
+	return window != nil && strings.HasPrefix(window.Name(), "win-")
+}
+
+func isReadyEditorWindow(window application.Window) bool {
+	if !isEditorWindow(window) {
+		return false
+	}
+	readyEditorWindowsMu.Lock()
+	defer readyEditorWindowsMu.Unlock()
+	return readyEditorWindows[window.Name()]
+}
+
+func markEditorWindowReady(window application.Window) {
+	if !isEditorWindow(window) {
+		return
+	}
+	readyEditorWindowsMu.Lock()
+	readyEditorWindows[window.Name()] = true
+	readyEditorWindowsMu.Unlock()
+	flushQueuedOpenFiles()
+}
+
+func markEditorWindowClosed(name string) {
+	readyEditorWindowsMu.Lock()
+	delete(readyEditorWindows, name)
+	readyEditorWindowsMu.Unlock()
+}
+
 // openExamplesWindow is the Help → Examples menu callback.
 func openExamplesWindow(*application.Context) {
 	spawnExamplesWindow()
@@ -180,7 +355,10 @@ func registerSessionWindow(window application.Window, id string, x, y, w, h int,
 	sessionSvc.registerWindow(id, x, y, w, h, maximised)
 	window.OnWindowEvent(events.Common.WindowDidMove, func(*application.WindowEvent) { sessionSvc.schedulePersist() })
 	window.OnWindowEvent(events.Common.WindowDidResize, func(*application.WindowEvent) { sessionSvc.schedulePersist() })
-	window.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) { sessionSvc.handleWindowClosing(id) })
+	window.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) {
+		markEditorWindowClosed(id)
+		sessionSvc.handleWindowClosing(id)
+	})
 }
 
 // startupSpawn opens the right windows at launch based on the prepared session.

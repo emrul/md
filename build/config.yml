@@ -11,7 +11,7 @@ info:
   description: "A program that does X" # The application description
   copyright: "© 2026, Emrul Islam" # Copyright text
   comments: "Some Product Comments" # Comments
-  version: "0.2.1" # The application version
+  version: "0.2.6" # The application version
   # cfBundleIconName: "appicon" # The macOS icon name in Assets.car icon bundles (optional)
   #                               # Should match the name of your .icon file without the extension
   #                               # If not set and Assets.car exists, defaults to "appicon"
@@ -61,17 +61,24 @@ dev_mode:
 # File Associations
 # More information at: https://v3.wails.io/noit/done/yet
 fileAssociations:
-#  - ext: wails
-#    name: Wails
-#    description: Wails Application File
-#    iconName: wailsFileIcon
-#    role: Editor
-#  - ext: jpg
-#    name: JPEG
-#    description: Image File
-#    iconName: jpegFileIcon
-#    role: Editor
-#    mimeType: image/jpeg  # (optional)
+  - ext: md
+    name: Markdown Document
+    description: Markdown source document
+    iconName: icons
+    role: Editor
+    mimeType: text/markdown
+  - ext: markdown
+    name: Markdown Document
+    description: Markdown source document
+    iconName: icons
+    role: Editor
+    mimeType: text/markdown
+  - ext: mdx
+    name: MDX Document
+    description: Markdown JSX document
+    iconName: icons
+    role: Editor
+    mimeType: text/mdx
 
 # Other data
 other:

@@ -15,17 +15,17 @@ import { mountToc } from '../ui/toc'
 import { mountFind } from '../ui/find'
 import { mountGutterRail } from '../ui/gutterRail'
 import { findGitRoot, gitBranch } from '../services/workspace'
-import { openPaths } from '../services/files'
+import { openPath, openPaths } from '../services/files'
 import { startFileSync } from '../services/fileSync'
 import { loadExamples } from '../services/examples'
 import { getRestoreWindow, saveWindowContent, type SessionContent } from '../services/session'
-import { ReadFile } from './ipc'
 import { loadPreferences } from './preferences'
 import { bindBubbleMenu, createBubbleMenu } from '../ui/bubbleMenu'
 import { mountCodeBlockLangPicker } from '../ui/codeBlockLangPicker'
 import { mountTableToolbar } from '../ui/tableToolbar'
 import { mountExternalChangeBanner } from '../ui/externalChangeBanner'
 import { bindCanvasClick } from './canvasClick'
+import { MarkEditorReady } from './ipc'
 
 // Breadcrumb via the global set by bootDiagnostics — NOT a static import, which
 // would pull the entry chunk into this dynamically-imported chunk and deadlock
@@ -129,6 +129,21 @@ export async function bootEditorWindow(): Promise<void> {
     tab.disposables.push({ destroy: unsub })
   }
 
+  function pathsFromOpenEventData(data: unknown): string[] {
+    if (typeof data === 'string') return data ? [data] : []
+    if (!Array.isArray(data)) return []
+    return data.filter((path): path is string => typeof path === 'string' && path.length > 0)
+  }
+
+  async function openExternalPaths(paths: string[]): Promise<void> {
+    if (paths.length === 0) return
+    if (paths.length === 1) {
+      await openPath(tm, paths[0])
+      return
+    }
+    await openPaths(tm, paths)
+  }
+
   const tm = new TabManager({
     host,
     onAfterTabContentChange: refreshAll,
@@ -183,6 +198,10 @@ export async function bootEditorWindow(): Promise<void> {
   const myWindowName = await Window.Name()
   markBootStep('bootEditor: Window.Name() done')
   bindTabContextMenuEvents(tm, myWindowName)
+  Events.On('file:openPaths', (ev) => {
+    if (ev.sender && ev.sender !== myWindowName) return
+    void openExternalPaths(pathsFromOpenEventData(ev.data))
+  })
 
   /**
    * Reload a window's tabs + explorer panel from the saved session. The Go
@@ -246,19 +265,14 @@ export async function bootEditorWindow(): Promise<void> {
   markBootStep('bootEditor: opening initial tabs')
   const params = new URLSearchParams(window.location.search)
   const restoreId = params.get('restore')
-  const initialFile = params.get('file')
+  const initialFiles = params.getAll('file').filter((path) => path.length > 0)
   if (restoreId) {
     await restoreWindowState(restoreId)
   } else if (params.get('examples')) {
     openExamples(tm)
-  } else if (initialFile) {
-    try {
-      const content = await ReadFile(initialFile)
-      tm.newTab({ path: initialFile, content })
-    } catch (err) {
-      console.error('[boot] failed to load initial file', initialFile, err)
-      tm.newTab()
-    }
+  } else if (initialFiles.length > 0) {
+    await openExternalPaths(initialFiles)
+    if (tm.tabs.length === 0) tm.newTab()
   } else {
     tm.newTab()
   }
@@ -268,5 +282,8 @@ export async function bootEditorWindow(): Promise<void> {
   installSessionReporting(myWindowName)
   // Reload open files when they change on disk (external tools / AI agents).
   startFileSync(tm)
+  await MarkEditorReady(myWindowName).catch((err) => {
+    console.error('[boot] failed to mark editor ready', err)
+  })
   markBootStep('bootEditor: done')
 }

@@ -97,8 +97,18 @@ func Run(opts Options) error {
 	// windows are spawned from ApplicationStarted, where window setters can run
 	// safely off the main thread.
 	session.prepareStartup()
+	app.Event.OnApplicationEvent(events.Common.ApplicationOpenedWithFile, func(event *application.ApplicationEvent) {
+		handleExternalOpenFile(event.Context().Filename())
+	})
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		if spawnQueuedOpenFiles() {
+			openFileRoutingReady.Store(true)
+			flushQueuedOpenFiles()
+			return
+		}
 		startupSpawn()
+		openFileRoutingReady.Store(true)
+		flushQueuedOpenFiles()
 	})
 
 	return app.Run()
