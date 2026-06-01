@@ -24,6 +24,7 @@ import { convertToWysiwyg } from './mode'
 import { HeadingCycle } from './extensions/HeadingCycle'
 import { SlashMenu } from './extensions/slash/SlashMenu'
 import { MarkdownPaste } from './extensions/MarkdownPaste'
+import { ReadOnlyGuard } from './extensions/ReadOnlyGuard'
 import { TreeDropHandler } from './extensions/treeDropHandler'
 import { FindHighlight } from './find/FindHighlight'
 import './extensions/task-list.css'
@@ -44,6 +45,12 @@ export interface CreateEditorOptions {
    * editor is constructed.
    */
   getSourcePath?: () => string | null
+  /**
+   * Returns whether the owning tab is read-only (bundled Examples). Threaded as
+   * a closure for the same reason as getSourcePath — the Tab is created after
+   * the editor. Drives the ReadOnlyGuard transaction filter.
+   */
+  getReadOnly?: () => boolean
 }
 
 // One schema serves both render modes. `sourceBlock` is listed first in the
@@ -95,6 +102,7 @@ export function createEditor(opts: CreateEditorOptions): Editor {
       HeadingCycle,
       SlashMenu,
       MarkdownPaste,
+      ReadOnlyGuard.configure({ getReadOnly: opts.getReadOnly ?? (() => false) }),
       FindHighlight,
       TreeDropHandler.configure({
         getSourcePath: opts.getSourcePath ?? (() => null),

@@ -52,10 +52,7 @@ function displayPath(filePath: string, root: string, home: string): string {
   return fp
 }
 
-export function mountStatusbar(
-  tm: TabManager,
-  explorer: ExplorerState,
-): { refresh: () => void } {
+export function mountStatusbar(tm: TabManager, explorer: ExplorerState): { refresh: () => void } {
   const wordsEl = document.getElementById('st-words')
   const charsEl = document.getElementById('st-chars')
   const linesEl = document.getElementById('st-lines')
@@ -99,7 +96,9 @@ export function mountStatusbar(
         fileEl.textContent = 'Markdown'
         fileEl.removeAttribute('title')
       } else if (!tab.filePath) {
-        fileEl.textContent = 'Untitled'
+        // Read-only Examples have no path but do have a display name; surface the
+        // name + a Read-only marker instead of the generic "Untitled".
+        fileEl.textContent = tab.readOnly ? `${tab.fileName()} · Read-only` : 'Untitled'
         fileEl.removeAttribute('title')
       } else {
         const mode = tab.viewController?.mode === 'source' ? ' · Source' : ''

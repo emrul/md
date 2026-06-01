@@ -62,6 +62,15 @@ func defaultPreferences() Preferences {
 
 type PreferencesService struct {
 	path string
+	// firstRun is true when no preferences file existed at startup — i.e. a fresh
+	// install. Drives the first-launch onboarding (open the bundled Examples).
+	firstRun bool
+}
+
+// FirstRun reports whether this launch is a fresh install (no preferences file
+// existed when the service initialized).
+func (s *PreferencesService) FirstRun() bool {
+	return s.firstRun
 }
 
 // NewPreferencesService resolves the on-disk preferences path and ensures
@@ -77,6 +86,7 @@ func NewPreferencesService() (*PreferencesService, error) {
 	}
 	svc := &PreferencesService{path: filepath.Join(dir, "preferences.toml")}
 	if _, err := os.Stat(svc.path); errors.Is(err, fs.ErrNotExist) {
+		svc.firstRun = true
 		if err := svc.write(defaultPreferences()); err != nil {
 			return nil, err
 		}

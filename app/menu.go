@@ -83,12 +83,18 @@ func buildAppMenu(app *application.App, version string) *application.Menu {
 
 	if runtime.GOOS == "darwin" {
 		menu.AddRole(application.WindowMenu)
-		menu.AddRole(application.HelpMenu)
+		// A custom Help submenu (titled "Help", so macOS still adds its Spotlight
+		// search field) carrying the onboarding entry. Replaces the default Help
+		// role, whose only item was a "Learn More" link to wails.io.
+		help := menu.AddSubmenu("Help")
+		help.Add("Examples").OnClick(openExamplesWindow)
 	} else {
 		// Windows/Linux have no app menu, so "About" and "Check for Updates…"
 		// belong in Help (the platform-conventional home) rather than orphaned
 		// in File. On macOS both live in the app menu, built above.
 		help := menu.AddSubmenu("Help")
+		help.Add("Examples").OnClick(openExamplesWindow)
+		help.AddSeparator()
 		help.Add("Check for Updates…").OnClick(checkForUpdates(app))
 		help.AddSeparator()
 		help.Add("About MarkdownMD").OnClick(showAbout(app, version))

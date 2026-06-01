@@ -298,6 +298,8 @@ export interface SourceViewOptions {
   parent: HTMLElement
   doc: string
   onUpdate?: (doc: string) => void
+  /** Read-only buffer (Examples): the source can be viewed but not edited. */
+  readOnly?: boolean
 }
 
 export interface SourceView {
@@ -337,6 +339,10 @@ export function createSourceView(opts: SourceViewOptions): SourceView {
         search(),
         findHighlighter,
         keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+        // Read-only Examples: lock the buffer (readOnly blocks edit transactions;
+        // editable:false drops the contenteditable so the caret/keyboard can't
+        // type) while keeping selection + copy.
+        ...(opts.readOnly ? [EditorState.readOnly.of(true), EditorView.editable.of(false)] : []),
         EditorView.updateListener.of((u) => {
           if (!u.docChanged) return
           const text = u.state.doc.toString()

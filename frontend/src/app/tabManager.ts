@@ -17,6 +17,13 @@ export interface NewTabOptions {
    * the last tab should be rendered up-front.
    */
   defer?: boolean
+  /**
+   * Read-only tab (a bundled Example). Locked after the content loads. Not
+   * combined with `defer` — Examples load eagerly so locking is simple.
+   */
+  readOnly?: boolean
+  /** Display name for a tab with no real file path (Examples). */
+  title?: string
 }
 
 export interface TabManagerOptions {
@@ -114,15 +121,20 @@ export class TabManager {
       },
       onSelectionUpdate: () => this.onAfterSelectionUpdate(),
       getSourcePath: () => tabRef?.filePath ?? null,
+      // Read live: false during the initial load (so the content isn't filtered),
+      // true once locked below. See ReadOnlyGuard.
+      getReadOnly: () => tabRef?.readOnly ?? false,
     })
 
     const tab = new Tab(id, editor, dom)
     tabRef = tab
+    if (opts.title) tab.displayName = opts.title
     tab.viewController = createViewController({
       editor,
       hybridContainer: dom.hybridContainer,
       sourceParent: dom.sourceParent,
       initialMode: prefs().editorMode,
+      readOnly: opts.readOnly,
     })
     tab.viewController.onContentChange(() => {
       tab.setModified(true)
@@ -149,6 +161,13 @@ export class TabManager {
     if (opts.content !== undefined) {
       tab.loadMarkdown(opts.content)
       tab.markLoaded(opts.content)
+      // Lock AFTER loading so the content load isn't blocked by the guard, then
+      // make the editor non-editable. View-mode switching still works.
+      if (opts.readOnly) {
+        tab.readOnly = true
+        editor.setEditable(false)
+        tab.dom.mount.classList.add('is-readonly')
+      }
     }
 
     this.setActive(id)

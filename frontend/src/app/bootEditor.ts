@@ -17,6 +17,7 @@ import { mountGutterRail } from '../ui/gutterRail'
 import { findGitRoot, gitBranch } from '../services/workspace'
 import { openPaths } from '../services/files'
 import { startFileSync } from '../services/fileSync'
+import { loadExamples } from '../services/examples'
 import { getRestoreWindow, saveWindowContent, type SessionContent } from '../services/session'
 import { ReadFile } from './ipc'
 import { loadPreferences } from './preferences'
@@ -30,6 +31,22 @@ import { bindCanvasClick } from './canvasClick'
 // would pull the entry chunk into this dynamically-imported chunk and deadlock
 // V8 on the entry's top-level await. See bootDiagnostics.ts.
 const markBootStep = (step: string): void => globalThis.__mdBootStep?.(step)
+
+// Open the bundled onboarding docs as read-only tabs in numbered order, with the
+// first one active. Used on first run and from Help → Examples.
+function openExamples(tm: TabManager): void {
+  const examples = loadExamples()
+  if (examples.length === 0) {
+    tm.newTab()
+    return
+  }
+  let firstId: string | null = null
+  for (const ex of examples) {
+    const tab = tm.newTab({ content: ex.content, readOnly: true, title: ex.title })
+    firstId ??= tab.id
+  }
+  if (firstId) tm.setActive(firstId)
+}
 
 export async function bootEditorWindow(): Promise<void> {
   markBootStep('bootEditor: entered')
@@ -223,14 +240,17 @@ export async function bootEditorWindow(): Promise<void> {
     report() // immediate initial snapshot
   }
 
-  // Boot the initial tabs. Priority: restored session (?restore=<id>), then a
-  // single file from "Open in New Window" (?file=<path>), else one Untitled.
+  // Boot the initial tabs. Priority: restored session (?restore=<id>), the
+  // bundled onboarding docs (?examples=1, first run / Help → Examples), a single
+  // file from "Open in New Window" (?file=<path>), else one Untitled.
   markBootStep('bootEditor: opening initial tabs')
   const params = new URLSearchParams(window.location.search)
   const restoreId = params.get('restore')
   const initialFile = params.get('file')
   if (restoreId) {
     await restoreWindowState(restoreId)
+  } else if (params.get('examples')) {
+    openExamples(tm)
   } else if (initialFile) {
     try {
       const content = await ReadFile(initialFile)

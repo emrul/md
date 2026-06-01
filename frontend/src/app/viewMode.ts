@@ -52,6 +52,8 @@ export interface CreateViewControllerOptions {
   sourceParent: HTMLElement
   /** Initial mode (from the editorMode preference). Defaults to 'hybrid'. */
   initialMode?: ViewMode
+  /** Read-only tab (Examples): the source view is created read-only too. */
+  readOnly?: boolean
 }
 
 export function createViewController(opts: CreateViewControllerOptions): ViewController {
@@ -149,6 +151,7 @@ export function createViewController(opts: CreateViewControllerOptions): ViewCon
       parent: opts.sourceParent,
       doc: md,
       onUpdate: () => notifyContent(),
+      readOnly: opts.readOnly,
     })
     sourceView.focus()
   }

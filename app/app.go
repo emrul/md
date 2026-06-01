@@ -41,6 +41,9 @@ func Run(opts Options) error {
 	if err != nil {
 		return fmt.Errorf("preferences: %w", err)
 	}
+	// Record fresh-install state for startupSpawn (open the bundled Examples on
+	// the very first launch).
+	firstLaunch = prefs.FirstRun()
 
 	logs := NewLogService()
 	workspace := NewWorkspaceService(logs)

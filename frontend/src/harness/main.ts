@@ -29,12 +29,14 @@ const element = document.getElementById('editor') as HTMLElement
 const bubble = document.getElementById('bubble') as HTMLElement
 const status = document.getElementById('status') as HTMLElement
 
+let harnessReadOnly = false
 const editor = createEditor({
   element,
   bubbleMenuElement: bubble,
   onUpdate: () => {},
   onSelectionUpdate: () => {},
   getSourcePath: () => null,
+  getReadOnly: () => harnessReadOnly,
 })
 
 // Test hooks for the headless driver.
@@ -67,6 +69,12 @@ const harness = {
   // Resolve the link target at a document position (cmd/ctrl-click logic).
   linkHrefAt(pos: number): string | null {
     return linkHrefAt(editor.state, pos)
+  },
+  // Toggle the read-only lock the way a tab does: flip the guard flag and the
+  // editor's editable state together.
+  setReadOnly(on: boolean): void {
+    harnessReadOnly = on
+    editor.setEditable(!on)
   },
   // Render-mode switching (in-place WYSIWYG↔Hybrid conversion).
   renderMode(): RenderMode {

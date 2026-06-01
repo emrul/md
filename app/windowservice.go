@@ -18,6 +18,11 @@ var sessionSvc *SessionService
 
 var winSeq uint64
 
+// firstLaunch is true when no preferences file existed at startup (fresh
+// install). Set in Run from the PreferencesService; read by startupSpawn to open
+// the bundled Examples instead of a blank window on the very first launch.
+var firstLaunch bool
+
 // restorePromptPending is true only while the crash-recovery prompt is on screen
 // and the window(s) it spawns don't exist yet. During that gap there are zero
 // windows: the button callbacks run on the main thread, so the spawn (window
@@ -131,6 +136,19 @@ func spawnEditorWindow(launchURL string) {
 	registerSessionWindow(window, id, x, y, defaultWindowWidth, defaultWindowHeight, false)
 }
 
+// spawnExamplesWindow opens a session-tracked editor window pre-loaded with the
+// bundled onboarding docs as read-only tabs (the frontend reads ?examples=1).
+// It won't survive restore — the example tabs have no file paths, so the window
+// records no restorable tabs.
+func spawnExamplesWindow() {
+	spawnEditorWindow("/?examples=1")
+}
+
+// openExamplesWindow is the Help → Examples menu callback.
+func openExamplesWindow(*application.Context) {
+	spawnExamplesWindow()
+}
+
 // spawnRestoreWindow recreates a window from a saved session record. The
 // frontend reads ?restore=<id> and pulls its tabs + explorer state from the
 // SessionService. Must run off the main thread (window setters dispatch to it).
@@ -171,7 +189,12 @@ func registerSessionWindow(window application.Window, id string, x, y, w, h int,
 func startupSpawn() {
 	windows := sessionSvc.restorableWindows()
 	if len(windows) == 0 {
-		spawnEditorWindow("/")
+		// Fresh install with nothing to restore: greet with the bundled Examples.
+		if firstLaunch {
+			spawnExamplesWindow()
+		} else {
+			spawnEditorWindow("/")
+		}
 		return
 	}
 	if !sessionSvc.previousRunCrashed() {

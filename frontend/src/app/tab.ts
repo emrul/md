@@ -41,6 +41,17 @@ export class Tab {
   filePath: string | null = null
   modified = false
   /**
+   * Read-only tab (a bundled Example). The editor is non-editable and a
+   * transaction guard blocks edits; saving is suppressed. View-mode switching
+   * still works so the doc can be explored. Set after the content loads.
+   */
+  readOnly = false
+  /**
+   * Display name override for tabs with no real file path (the Examples). When
+   * set, `fileName()` returns it instead of deriving from filePath/Untitled.
+   */
+  displayName: string | null = null
+  /**
    * Absolute path of the enclosing git repo root for this tab's file, or
    * null when the file isn't inside a repo (or no file is open). Set
    * asynchronously after the path resolves via FindGitRoot.
@@ -104,6 +115,7 @@ export class Tab {
   }
 
   fileName(): string {
+    if (this.displayName) return this.displayName
     return this.filePath ? this.filePath.replace(/.*[/\\]/, '') : 'Untitled.md'
   }
 

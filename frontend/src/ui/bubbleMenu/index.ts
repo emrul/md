@@ -74,6 +74,9 @@ interface ShouldShowProps {
 }
 
 export function bubbleMenuShouldShow(props: ShouldShowProps): boolean {
+  // The bubble menu is all editing actions — never show it on a read-only
+  // (Examples) doc, where selection is only for reading/copying.
+  if (!props.editor.isEditable) return false
   const isChildOfMenu = props.element.contains(document.activeElement)
   const hasEditorFocus = props.view.hasFocus() || isChildOfMenu
   if (!hasEditorFocus) return false

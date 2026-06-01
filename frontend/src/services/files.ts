@@ -179,6 +179,7 @@ export async function openPaths(tm: TabManager, paths: string[]): Promise<void> 
 export async function saveFile(tm: TabManager): Promise<void> {
   const tab = tm.active()
   if (!tab) return
+  if (tab.readOnly) return // bundled Examples are view-only
   if (!tab.filePath) return saveFileAs(tm)
   try {
     await WriteFile(tab.filePath, tab.getCurrentMarkdown())
@@ -191,6 +192,7 @@ export async function saveFile(tm: TabManager): Promise<void> {
 export async function saveFileAs(tm: TabManager): Promise<void> {
   const tab = tm.active()
   if (!tab) return
+  if (tab.readOnly) return // bundled Examples are view-only
   try {
     const path = await SaveFileDialog(tab.filePath || 'Untitled.md')
     if (!path) return
