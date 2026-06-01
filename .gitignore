@@ -1,0 +1,26 @@
+.task
+bin
+markdownmd
+frontend/dist
+frontend/node_modules
+build/linux/appimage/build
+build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
+
+# OS / editor noise
+.DS_Store
+.idea/
+.vscode/
+
+# Generated
+*.syso
+frontend/bindings
+
+# Tooling
+.claude/
+CLAUDE.md
+CLAUDE.me
+
+# Pro builds: go.work is generated locally by `task setup:pro` and points
+# at the private markdownmd-pro sibling. Per-clone artifact, never commit.
+go.work
+go.work.sum
