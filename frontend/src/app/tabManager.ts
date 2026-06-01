@@ -148,7 +148,7 @@ export class TabManager {
 
     if (opts.content !== undefined) {
       tab.loadMarkdown(opts.content)
-      tab.markLoaded()
+      tab.markLoaded(opts.content)
     }
 
     this.setActive(id)
@@ -209,7 +209,7 @@ export class TabManager {
     const content = tab.pendingContent
     tab.pendingContent = null
     tab.loadMarkdown(content)
-    tab.markLoaded()
+    tab.markLoaded(content)
   }
 
   onChange(fn: Listener): () => void {

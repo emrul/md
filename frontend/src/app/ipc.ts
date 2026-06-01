@@ -5,6 +5,7 @@ export {
   RenameFile,
   RevealInFinder,
   SaveFileDialog,
+  StatFile,
   WriteFile,
 } from '../../bindings/markdownmd/app/fileservice.js'
 

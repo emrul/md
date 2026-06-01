@@ -61,7 +61,7 @@ async function loadIntoActiveOrNewTab(
 function applyToTab(tab: Tab, opts: { path: string | null; content: string }): void {
   tab.loadMarkdown(opts.content)
   tab.setFilePath(opts.path)
-  tab.markLoaded()
+  tab.markLoaded(opts.content)
 }
 
 export async function newFile(tm: TabManager): Promise<void> {
@@ -200,6 +200,32 @@ export async function saveFileAs(tm: TabManager): Promise<void> {
   } catch (err) {
     alert('Could not save: ' + String(err))
   }
+}
+
+/**
+ * Resolve an external-change conflict on the active tab by discarding the
+ * working buffer and reloading the disk version. No-op when there's no conflict.
+ */
+export function reloadActiveFromDisk(tm: TabManager): void {
+  const tab = tm.active()
+  const disk = tab?.externalChange?.diskContent
+  if (!tab || disk === undefined) return
+  tab.reloadFromDisk(disk)
+}
+
+/**
+ * Resolve an external-change conflict by writing the working buffer over disk
+ * (a normal save — `markSaved` re-baselines and clears the flag).
+ */
+export async function overwriteDiskWithWorking(tm: TabManager): Promise<void> {
+  if (!tm.active()?.externalChange) return
+  await saveFile(tm)
+}
+
+/** Dismiss the conflict banner, keeping the working buffer (it wins until the
+ * next save or external change). */
+export function keepWorkingVersion(tm: TabManager): void {
+  tm.active()?.clearExternalChange()
 }
 
 export function insertLink(tm: TabManager): void {

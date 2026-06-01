@@ -16,12 +16,14 @@ import { mountFind } from '../ui/find'
 import { mountGutterRail } from '../ui/gutterRail'
 import { findGitRoot, gitBranch } from '../services/workspace'
 import { openPaths } from '../services/files'
+import { startFileSync } from '../services/fileSync'
 import { getRestoreWindow, saveWindowContent, type SessionContent } from '../services/session'
 import { ReadFile } from './ipc'
 import { loadPreferences } from './preferences'
 import { bindBubbleMenu, createBubbleMenu } from '../ui/bubbleMenu'
 import { mountCodeBlockLangPicker } from '../ui/codeBlockLangPicker'
 import { mountTableToolbar } from '../ui/tableToolbar'
+import { mountExternalChangeBanner } from '../ui/externalChangeBanner'
 import { bindCanvasClick } from './canvasClick'
 
 // Breadcrumb via the global set by bootDiagnostics — NOT a static import, which
@@ -64,6 +66,7 @@ export async function bootEditorWindow(): Promise<void> {
     bindBubbleMenu(refs, tab)
     tab.disposables.push(mountCodeBlockLangPicker(tab.editor))
     tab.disposables.push(mountTableToolbar(tab.editor))
+    tab.disposables.push(mountExternalChangeBanner(tab))
     bindCanvasClick(tab.editor)
     attachGitRootTracking(tab)
     for (const f of features()) f.attachTab?.(tab, featureCtx)
@@ -147,7 +150,11 @@ export async function bootEditorWindow(): Promise<void> {
     const data = ev.data as unknown
     if (typeof data === 'string') {
       commands.execute(data)
-    } else if (data && typeof data === 'object' && typeof (data as { id?: unknown }).id === 'string') {
+    } else if (
+      data &&
+      typeof data === 'object' &&
+      typeof (data as { id?: unknown }).id === 'string'
+    ) {
       const { id, args } = data as { id: string; args?: unknown }
       commands.execute(id, args)
     }
@@ -239,5 +246,7 @@ export async function bootEditorWindow(): Promise<void> {
   refreshAll()
 
   installSessionReporting(myWindowName)
+  // Reload open files when they change on disk (external tools / AI agents).
+  startFileSync(tm)
   markBootStep('bootEditor: done')
 }

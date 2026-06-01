@@ -52,6 +52,26 @@ func (f *FileService) ReadFile(path string) (string, error) {
 	return string(data), nil
 }
 
+// FileStat is the cheap "did this file change?" signal the frontend polls open
+// documents with, so it only re-reads (and diffs) a file whose stat actually
+// moved. Content is still the source of truth — this is just the gate.
+type FileStat struct {
+	// ModTimeMs is the file's modification time in milliseconds since the epoch.
+	ModTimeMs int64 `json:"modTimeMs"`
+	// Size is the file size in bytes.
+	Size int64 `json:"size"`
+}
+
+// StatFile returns the modification time + size of the file at path. A missing
+// file surfaces os.ErrNotExist, which the frontend treats as "deleted on disk".
+func (f *FileService) StatFile(path string) (FileStat, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return FileStat{}, err
+	}
+	return FileStat{ModTimeMs: fi.ModTime().UnixMilli(), Size: fi.Size()}, nil
+}
+
 func (f *FileService) WriteFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0o644)
 }

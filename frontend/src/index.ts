@@ -23,6 +23,11 @@ export { getFeatureSetting, setFeatureSetting } from './app/preferences'
 // Safe markdown→HTML render (parser runs with html:false; raw HTML escaped).
 export { renderMarkdownToHtml } from './editor/serialize/markdown'
 
+// External-change conflict seam: md-pro registers a resolver that opens the
+// disk-vs-working diff for a file changed underneath unsaved edits.
+export { setConflictResolver } from './services/externalChange'
+export type { ConflictResolver } from './services/externalChange'
+
 // Canonicalize a markdown string via the editor's parser+serializer round-trip,
 // so a diff of two snapshots isn't swamped by serializer-normalization noise.
 export { normalizeMarkdown } from './editor/mode'

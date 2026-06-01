@@ -84,6 +84,22 @@ export function registerCommands(
     keybinding: 'Cmd+Shift+S',
     handler: () => files.saveFileAs(tm),
   })
+  // External-change conflict resolution (the "changed on disk" banner / pro diff).
+  commands.register({
+    id: 'file.reloadFromDisk',
+    label: 'Reload From Disk',
+    handler: () => files.reloadActiveFromDisk(tm),
+  })
+  commands.register({
+    id: 'file.overwriteDisk',
+    label: 'Save Working Version to Disk',
+    handler: () => void files.overwriteDiskWithWorking(tm),
+  })
+  commands.register({
+    id: 'file.keepWorking',
+    label: 'Keep Current Changes',
+    handler: () => files.keepWorkingVersion(tm),
+  })
   commands.register({
     id: 'tab.close',
     label: 'Close Tab',
