@@ -62,6 +62,78 @@ export function linkHrefAt(state: EditorState, pos: number): string | null {
   return null
 }
 
+// WYSIWYG headings render as <h1>..<h6>; hybrid headings are source blocks
+// styled .source-block.sb-h{level}. Match the TOC's selector so in-document
+// anchors resolve in both modes.
+const HEADING_SELECTOR = [
+  'h1, h2, h3, h4, h5, h6',
+  ...[1, 2, 3, 4, 5, 6].map((n) => `.source-block.sb-h${n}`),
+].join(', ')
+
+// Hybrid headings carry markdown markers ("# ") as .sb-marker spans — strip
+// them so the slug derives from the heading text, not the markup.
+function headingText(el: HTMLElement): string {
+  const clone = el.cloneNode(true) as HTMLElement
+  clone.querySelectorAll('.sb-marker').forEach((m) => m.remove())
+  return (clone.textContent ?? '').replace(/\s+/g, ' ').trim()
+}
+
+// GitHub's heading-slug algorithm: lowercase, drop everything but word chars /
+// whitespace / hyphens, then spaces → hyphens (runs are *not* collapsed, so
+// "A & B" → "a--b"). Matches the anchors GitHub/most renderers emit.
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s-]+/g, '')
+    .replace(/\s/g, '-')
+}
+
+// Walk up to the nearest scrollable ancestor so we can scroll within the
+// editor's container (with the TOC's 24px breathing room) rather than letting
+// scrollIntoView yank the whole window.
+function scrollableAncestor(el: HTMLElement): HTMLElement | null {
+  let node = el.parentElement
+  while (node) {
+    const oy = getComputedStyle(node).overflowY
+    if ((oy === 'auto' || oy === 'scroll') && node.scrollHeight > node.clientHeight) return node
+    node = node.parentElement
+  }
+  return null
+}
+
+// Scroll to the heading whose slug matches an in-document #fragment. Duplicate
+// slugs get -1, -2… suffixes in first-occurrence order, mirroring GitHub.
+function scrollToFragment(root: HTMLElement, fragment: string): boolean {
+  let want = fragment
+  try {
+    want = decodeURIComponent(fragment)
+  } catch {
+    /* keep the raw fragment if it isn't valid percent-encoding */
+  }
+  want = want.toLowerCase()
+
+  const counts = new Map<string, number>()
+  const headings = root.querySelectorAll<HTMLElement>(HEADING_SELECTOR)
+  for (const el of headings) {
+    const base = slugify(headingText(el))
+    if (!base) continue
+    const n = counts.get(base) ?? 0
+    counts.set(base, n + 1)
+    const slug = n === 0 ? base : `${base}-${n}`
+    if (slug !== want) continue
+
+    const scrollEl = scrollableAncestor(el)
+    if (scrollEl) {
+      const offset = el.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top
+      scrollEl.scrollTo({ top: Math.max(0, scrollEl.scrollTop + offset - 24), behavior: 'smooth' })
+    } else {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+    return true
+  }
+  return false
+}
+
 // Resolve a local markdown link and open it as a tab. openPath dedupes — it
 // switches to the file's tab if already open, else opens a new one.
 async function openLocalLink(fromFile: string, href: string): Promise<void> {
@@ -110,6 +182,12 @@ export const LinkOpen = Extension.create<LinkOpenOptions>({
                 if (at) href = linkHrefAt(view.state, at.pos)
               }
               if (!href) return false
+              if (href.startsWith('#')) {
+                // Pure in-document fragment (TOC anchor) → scroll to the heading.
+                event.preventDefault()
+                scrollToFragment(view.dom as HTMLElement, href.slice(1))
+                return true
+              }
               if (ABS.test(href)) {
                 event.preventDefault()
                 void Browser.OpenURL(href).catch(() => {})
