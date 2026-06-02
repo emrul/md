@@ -4,6 +4,7 @@ import type { EditorState, Transaction } from '@tiptap/pm/state'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { renderInlineMath } from './Math'
+import { imageDestination, resolvedImageSrc } from '../imagePaths'
 import './source-block.css'
 
 // SPIKE: a text block whose content is always raw markdown text, styled live
@@ -44,6 +45,10 @@ interface SourceBlockStorage {
   }
 }
 
+interface SourceBlockOptions {
+  getSourcePath: () => string | null
+}
+
 interface InlinePattern {
   re: RegExp
   cls: string
@@ -65,19 +70,53 @@ const PATTERNS: InlinePattern[] = [
 ]
 
 const HEADING_RE = /^(#{1,6}) /
+// Block/inline image: ![alt](url). Render the image and hide the raw syntax in
+// hybrid mode, including when the image block has focus.
+const IMAGE_RE = /!\[([^\]\n]*)\]\(([^)\n]+)\)/g
 // Inline link: [text](url). The text renders as a link; the brackets and the
 // (url) are markers (hidden when idle, dimmed when the caret is in the block).
-const LINK_RE = /\[([^\]\n]+)\]\([^)\n]+\)/g
+const LINK_RE = /(?<!!)\[([^\]\n]+)\]\([^)\n]+\)/g
 // Inline math: $…$, excluding $$ (block) and escaped \$.
 const MATH_RE = /(?<![\\$])\$([^$\n]+?)\$(?!\$)/g
 
-function decorateBlock(text: string, base: number, active: boolean, out: Decoration[]): void {
+function makeImageWidget(src: string, alt: string, sourcePath: string | null): HTMLElement {
+  const img = document.createElement('img')
+  img.className = 'sb-image'
+  img.src = resolvedImageSrc(imageDestination(src), sourcePath) ?? imageDestination(src)
+  img.alt = alt
+  img.draggable = false
+  return img
+}
+
+function decorateBlock(
+  text: string,
+  base: number,
+  active: boolean,
+  sourcePath: string | null,
+  out: Decoration[],
+): void {
   const markerCls = active ? 'sb-marker' : 'sb-marker sb-hidden'
   let scanStart = 0
   const h = HEADING_RE.exec(text)
   if (h) {
     scanStart = h[0].length
     out.push(Decoration.inline(base, base + scanStart, { class: markerCls }))
+  }
+  IMAGE_RE.lastIndex = scanStart
+  let im: RegExpExecArray | null
+  while ((im = IMAGE_RE.exec(text)) !== null) {
+    const start = im.index
+    const end = start + im[0].length
+    const raw = im[0]
+    const alt = im[1]
+    const dest = im[2]
+    out.push(Decoration.inline(base + start, base + end, { class: 'sb-hidden' }))
+    out.push(
+      Decoration.widget(base + start, () => makeImageWidget(dest, alt, sourcePath), {
+        key: `img:${base + start}:${raw}`,
+        side: -1,
+      }),
+    )
   }
   LINK_RE.lastIndex = scanStart
   let lm: RegExpExecArray | null
@@ -127,16 +166,21 @@ function decorateBlock(text: string, base: number, active: boolean, out: Decorat
 }
 
 // revealPos forces a block active even when the caret isn't inside it yet.
-function compute(state: EditorState, revealPos: number | null): DecorationSet {
+function compute(
+  state: EditorState,
+  revealPos: number | null,
+  getSourcePath: () => string | null,
+): DecorationSet {
   const out: Decoration[] = []
   const { doc, selection } = state
+  const sourcePath = getSourcePath()
   doc.descendants((node, pos) => {
     if (node.type.name !== 'sourceBlock') return true
     const active =
       (selection.from > pos && selection.from < pos + node.nodeSize) || revealPos === pos
     const h = HEADING_RE.exec(node.textContent)
     if (h) out.push(Decoration.node(pos, pos + node.nodeSize, { class: `sb-h${h[1].length}` }))
-    decorateBlock(node.textContent, pos + 1, active, out)
+    decorateBlock(node.textContent, pos + 1, active, sourcePath, out)
     return false
   })
   return DecorationSet.create(doc, out)
@@ -165,12 +209,18 @@ interface DecoState {
 
 const decoKey = new PluginKey<DecoState>('source-block-deco')
 
-export const SourceBlock = TiptapNode.create<unknown, SourceBlockStorage>({
+export const SourceBlock = TiptapNode.create<SourceBlockOptions, SourceBlockStorage>({
   name: 'sourceBlock',
   group: 'block',
   content: 'text*',
   marks: '',
   code: true,
+
+  addOptions() {
+    return {
+      getSourcePath: () => null,
+    }
+  },
 
   parseHTML() {
     return [{ tag: 'div[data-source-block]', preserveWhitespace: 'full' }]
@@ -329,12 +379,17 @@ export const SourceBlock = TiptapNode.create<unknown, SourceBlockStorage>({
 
   addProseMirrorPlugins() {
     let lastWasVertical = false
+    const getSourcePath = this.options.getSourcePath
 
     return [
       new Plugin<DecoState>({
         key: decoKey,
         state: {
-          init: (_config, state) => ({ set: compute(state, null), revealPos: null, pending: null }),
+          init: (_config, state) => ({
+            set: compute(state, null, getSourcePath),
+            revealPos: null,
+            pending: null,
+          }),
           apply: (tr, value, _old, next): DecoState => {
             const meta = tr.getMeta(decoKey) as
               | { revealPos?: number | null; pending?: Pending | null }
@@ -350,7 +405,7 @@ export const SourceBlock = TiptapNode.create<unknown, SourceBlockStorage>({
               pending = null // drop any pending placement across edits
             }
             if (tr.docChanged || tr.selectionSet || meta) {
-              return { set: compute(next, revealPos), revealPos, pending }
+              return { set: compute(next, revealPos, getSourcePath), revealPos, pending }
             }
             return { set: value.set, revealPos, pending }
           },

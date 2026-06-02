@@ -1,7 +1,12 @@
+import type { Editor } from '@tiptap/core'
+import type { EditorState } from '@tiptap/pm/state'
+import { TextSelection } from '@tiptap/pm/state'
 import type { Tab } from '../app/tab'
 import type { TabManager } from '../app/tabManager'
 import { OpenFileDialog, PreviewFile, ReadFile, SaveFileDialog, WriteFile } from '../app/ipc'
 import { prefs } from '../app/preferences'
+import { convertToWysiwyg } from '../editor/mode'
+import { promptDialog } from '../ui/confirmDialog'
 import { confirmDiscard } from './tabs'
 
 // Schedule work during a browser idle slot. Falls back to a short timeout on
@@ -230,24 +235,109 @@ export function keepWorkingVersion(tm: TabManager): void {
   tm.active()?.clearExternalChange()
 }
 
-export function insertLink(tm: TabManager): void {
-  const tab = tm.active()
-  if (!tab) return
-  if (tab.linkController?.requestLink()) return
-  const prev = (tab.editor.getAttributes('link').href as string | undefined) || ''
-  const url = prompt('URL:', prev)
-  if (url === null) return
-  if (url === '') {
-    tab.editor.chain().focus().unsetLink().run()
-  } else {
-    tab.editor.chain().focus().setLink({ href: url }).run()
+function sourceBlockDepth(state: EditorState): number {
+  const { $from, to } = state.selection
+  for (let d = $from.depth; d > 0; d--) {
+    if ($from.node(d).type.name === 'sourceBlock' && to <= $from.end(d)) return d
+  }
+  return -1
+}
+
+function selectionInSourceBlock(editor: Editor): boolean {
+  return sourceBlockDepth(editor.state) >= 0
+}
+
+function shouldInsertSourceMarkdown(tab: Tab): boolean {
+  return tab.viewController?.mode !== 'wysiwyg' && selectionInSourceBlock(tab.editor)
+}
+
+function ensureWysiwygShape(tab: Tab): void {
+  if (tab.viewController?.mode === 'wysiwyg' && selectionInSourceBlock(tab.editor)) {
+    convertToWysiwyg(tab.editor)
   }
 }
 
-export function insertImage(tm: TabManager): void {
+function markdownLinkText(text: string): string {
+  return text.replace(/\\/g, '\\\\').replace(/\]/g, '\\]')
+}
+
+function markdownLinkDestination(url: string): string {
+  if (/\s|[()]/.test(url)) return `<${url.replace(/>/g, '%3E')}>`
+  return url
+}
+
+function insertSourceMarkdown(editor: Editor, markdown: string): boolean {
+  return editor
+    .chain()
+    .focus()
+    .command(({ state, dispatch }) => {
+      if (sourceBlockDepth(state) < 0) return false
+      if (!dispatch) return true
+      const { from, to } = state.selection
+      const tr = state.tr.insertText(markdown, from, to)
+      tr.setSelection(TextSelection.create(tr.doc, from + markdown.length))
+      dispatch(tr.scrollIntoView())
+      return true
+    })
+    .run()
+}
+
+function insertSourceLink(editor: Editor, url: string): void {
+  if (!url) return
+  const { from, to, empty } = editor.state.selection
+  const selected = empty ? url : editor.state.doc.textBetween(from, to, '')
+  const text = markdownLinkText(selected || url)
+  const href = markdownLinkDestination(url)
+  insertSourceMarkdown(editor, `[${text}](${href})`)
+}
+
+export async function insertLink(tm: TabManager): Promise<void> {
   const tab = tm.active()
   if (!tab) return
-  const url = prompt('Image URL:')
+  if (!tab.editor.isEditable) return
+  const useSourceMarkdown = shouldInsertSourceMarkdown(tab)
+  if (!useSourceMarkdown) ensureWysiwygShape(tab)
+  if (!useSourceMarkdown && tab.linkController?.requestLink()) return
+  const prev = (tab.editor.getAttributes('link').href as string | undefined) || ''
+  const url = await promptDialog({
+    title: prev ? 'Edit link' : 'Insert link',
+    label: 'URL',
+    value: prev,
+    placeholder: 'https://example.com',
+    confirmLabel: prev ? 'Update' : 'Insert',
+  })
+  if (url === null) return
+  if (useSourceMarkdown) {
+    insertSourceLink(tab.editor, url)
+    return
+  }
+  if (url === '') {
+    tab.editor.chain().focus().extendMarkRange('link').unsetLink().run()
+  } else if (tab.editor.state.selection.empty && !tab.editor.isActive('link')) {
+    tab.editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: 'text',
+        text: url,
+        marks: [{ type: 'link', attrs: { href: url } }],
+      })
+      .run()
+  } else {
+    tab.editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
+  }
+}
+
+export async function insertImage(tm: TabManager): Promise<void> {
+  const tab = tm.active()
+  if (!tab) return
+  if (!tab.editor.isEditable) return
+  const url = await promptDialog({
+    title: 'Insert image',
+    label: 'Image URL',
+    placeholder: 'https://example.com/image.png',
+    confirmLabel: 'Insert',
+  })
   if (!url) return
   tab.editor.chain().focus().setImage({ src: url }).run()
 }

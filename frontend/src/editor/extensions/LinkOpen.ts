@@ -7,7 +7,7 @@ import { resolveLink } from '../../services/workspace'
 
 // [text](url) — used to recover the URL when the click lands in a source block,
 // where the link is raw text rather than a ProseMirror mark.
-const SB_LINK_RE = /\[([^\]\n]+)\]\(([^)\n]+)\)/g
+const SB_LINK_RE = /(?<!!)\[([^\]\n]+)\]\(([^)\n]+)\)/g
 
 // Absolute web/mail/tel links → system browser. Everything else is treated as a
 // candidate local target.

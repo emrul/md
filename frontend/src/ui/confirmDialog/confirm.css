@@ -44,6 +44,37 @@
   line-height: 1.5;
 }
 
+.confirm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0 18px;
+}
+
+.confirm-field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.confirm-input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.confirm-input:focus {
+  border-color: var(--link);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
 .confirm-buttons {
   display: flex;
   justify-content: flex-end;

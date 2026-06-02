@@ -305,6 +305,9 @@ export function mountToolbar(tm: TabManager): { refresh: () => void } {
       row.setAttribute('aria-checked', String(active))
       const icon = LIST_ITEM_ICONS[item.command]
       row.innerHTML = `${icon ? `<span class="tb-menu-icon">${icon}</span>` : ''}<span class="tb-menu-label">${item.label}</span>`
+      row.addEventListener('mousedown', (ev) => {
+        ev.preventDefault()
+      })
       row.addEventListener('click', () => {
         closeMenu()
         const t = tm.active()
@@ -344,6 +347,9 @@ export function mountToolbar(tm: TabManager): { refresh: () => void } {
       row.classList.toggle('is-active', active)
       row.setAttribute('aria-checked', String(active))
       row.innerHTML = `<span class="tb-menu-icon">${opt.icon}</span><span class="tb-menu-label">${opt.label}</span>`
+      row.addEventListener('mousedown', (ev) => {
+        ev.preventDefault()
+      })
       row.addEventListener('click', () => {
         closeMenu()
         updatePreference('editorMode', opt.mode)
@@ -383,6 +389,9 @@ export function mountToolbar(tm: TabManager): { refresh: () => void } {
         trigger.setAttribute('aria-haspopup', 'menu')
         trigger.setAttribute('aria-expanded', 'false')
         trigger.innerHTML = `${modeIcon(null)}${I_CHEVRON}`
+        trigger.addEventListener('mousedown', (ev) => {
+          ev.preventDefault()
+        })
         trigger.addEventListener('click', (ev) => {
           ev.stopPropagation()
           if (openTrigger === trigger) closeMenu()
@@ -399,6 +408,9 @@ export function mountToolbar(tm: TabManager): { refresh: () => void } {
         el.setAttribute('aria-label', def.label)
         if (def.isText) el.textContent = def.content
         else el.innerHTML = def.content
+        el.addEventListener('mousedown', (ev) => {
+          ev.preventDefault()
+        })
         el.addEventListener('click', () => {
           const tab = tm.active()
           if (!tab) return
@@ -417,6 +429,9 @@ export function mountToolbar(tm: TabManager): { refresh: () => void } {
         trigger.setAttribute('aria-haspopup', 'menu')
         trigger.setAttribute('aria-expanded', 'false')
         trigger.innerHTML = def.triggerContent(null)
+        trigger.addEventListener('mousedown', (ev) => {
+          ev.preventDefault()
+        })
         trigger.addEventListener('click', (ev) => {
           ev.stopPropagation()
           if (openTrigger === trigger) closeMenu()

@@ -54,7 +54,10 @@ func Run(opts Options) error {
 	sessionSvc = session
 
 	services := []application.Service{
-		application.NewService(&FileService{}),
+		application.NewServiceWithOptions(
+			&FileService{},
+			application.ServiceOptions{Route: "/__mdmd_file"},
+		),
 		application.NewService(&WindowService{}),
 		application.NewService(prefs),
 		application.NewService(logs),

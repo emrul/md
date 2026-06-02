@@ -29,6 +29,7 @@ w._wails ??= {
 const element = document.getElementById('editor') as HTMLElement
 const bubble = document.getElementById('bubble') as HTMLElement
 const status = document.getElementById('status') as HTMLElement
+const sourcePath = new URLSearchParams(window.location.search).get('file')
 
 let harnessReadOnly = false
 const editor = createEditor({
@@ -36,7 +37,7 @@ const editor = createEditor({
   bubbleMenuElement: bubble,
   onUpdate: () => {},
   onSelectionUpdate: () => {},
-  getSourcePath: () => null,
+  getSourcePath: () => sourcePath,
   getReadOnly: () => harnessReadOnly,
 })
 bindBubbleMenu(createBubbleMenu(bubble), { editor } as Parameters<typeof bindBubbleMenu>[1])

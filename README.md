@@ -4,19 +4,15 @@ I loved [MarkText](https://github.com/marktext/marktext) (especially the hybrid 
 
 With the increased use of AI in my development work I’m finding myself reading and reviewing more and more markdown files and wanted something more suited for my use case.
 
+![Screenshot](./examples/screenshot.png)
+
 ## Open core
 
 MarkdownMD is open core.
 
-This repository contains the open-source core editor. It builds and runs
-standalone without the private `md-pro` repository, and the OSS features can be
-used, modified, built, and redistributed under the open-source license below.
+This repository contains the open-source core editor. It builds and runs standalone without the private `md-pro` repository, and the OSS features can be used, modified, built, and redistributed under the open-source license below.
 
-Official release binaries may include separately licensed Pro features from the
-private `md-pro` repository. Those binaries are currently free to use and include
-a time-limited Pro preview: non-OSS Pro features deactivate 90 days after the
-release date unless otherwise licensed. Open-source features continue to work
-after that period.
+Official release binaries may include non-OSS features from the private `md-pro` repository. Those binaries are currently free to use and include a time-limited preview: non-OSS features deactivate 90 days after the release date unless otherwise licensed. Open-source features continue to work after that period.
 
 | Feature | OSS source build | Official release binary |
 | --- | --- | --- |

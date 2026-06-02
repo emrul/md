@@ -3,7 +3,6 @@ import StarterKit from '@tiptap/starter-kit'
 import Document from '@tiptap/extension-document'
 import Link from '@tiptap/extension-link'
 import Code from '@tiptap/extension-code'
-import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
 import CharacterCount from '@tiptap/extension-character-count'
 import { BubbleMenu } from '@tiptap/extension-bubble-menu'
@@ -20,6 +19,7 @@ import { SourceBlock } from './extensions/SourceBlock'
 import { RawParagraph, RawHeading, SourceRawInvalidator } from './extensions/SourceRaw'
 import { LinkOpen } from './extensions/LinkOpen'
 import { LinkPreview } from './extensions/LinkPreview'
+import { LocalImage } from './extensions/LocalImage'
 import { convertToWysiwyg } from './mode'
 import { HeadingCycle } from './extensions/HeadingCycle'
 import { SlashMenu } from './extensions/slash/SlashMenu'
@@ -98,7 +98,7 @@ export function createEditor(opts: CreateEditorOptions): Editor {
       AlignedTableCell,
       MathInline,
       MathBlock,
-      SourceBlock,
+      SourceBlock.configure({ getSourcePath: opts.getSourcePath ?? (() => null) }),
       HeadingCycle,
       SlashMenu,
       MarkdownPaste,
@@ -110,7 +110,7 @@ export function createEditor(opts: CreateEditorOptions): Editor {
       Link.configure({ openOnClick: false }),
       LinkOpen.configure({ getSourcePath: opts.getSourcePath ?? (() => null) }),
       LinkPreview.configure({ getSourcePath: opts.getSourcePath ?? (() => null) }),
-      Image,
+      LocalImage.configure({ getSourcePath: opts.getSourcePath ?? (() => null) }),
       Placeholder.configure({ placeholder: "Type '/' for commands…" }),
       CharacterCount,
       BubbleMenu.configure({

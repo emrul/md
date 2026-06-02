@@ -55,6 +55,12 @@ export default defineConfig({
     // 502 on the document. (Surfaced on Wails alpha.96, which dials IPv4.)
     host: "127.0.0.1",
     port: 9245,
+    fs: {
+      allow: [
+        resolve(__dirname),
+        resolve(__dirname, ".."),
+      ],
+    },
   },
   build: {
     target: "es2022",

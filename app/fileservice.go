@@ -3,10 +3,13 @@ package app
 import (
 	"errors"
 	"io"
+	"mime"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -93,6 +96,54 @@ func (f *FileService) PreviewFile(path string) (string, error) {
 		return "", err
 	}
 	return string(buf[:n]), nil
+}
+
+func isDisplayableImage(path string) bool {
+	mimeType := strings.ToLower(mime.TypeByExtension(filepath.Ext(path)))
+	return strings.HasPrefix(mimeType, "image/")
+}
+
+// ServeHTTP exposes local document images to the WebView through the app's own
+// asset origin. Desktop webviews commonly refuse file:// subresources from the
+// bundled app page, so rendered markdown images use this narrow endpoint.
+func (f *FileService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/image" {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		w.Header().Set("Allow", "GET, HEAD")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	rawPath := r.URL.Query().Get("path")
+	if rawPath == "" {
+		http.Error(w, "path required", http.StatusBadRequest)
+		return
+	}
+	path := filepath.Clean(filepath.FromSlash(rawPath))
+	if !filepath.IsAbs(path) {
+		http.Error(w, "absolute path required", http.StatusBadRequest)
+		return
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if info.IsDir() {
+		http.NotFound(w, r)
+		return
+	}
+	if !isDisplayableImage(path) {
+		http.Error(w, "unsupported media type", http.StatusUnsupportedMediaType)
+		return
+	}
+
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "no-cache")
+	http.ServeFile(w, r, path)
 }
 
 // RevealInFinder shows the file in the OS file browser, selected.
