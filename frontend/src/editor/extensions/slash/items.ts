@@ -1,4 +1,6 @@
 import type { Editor, Range } from '@tiptap/core'
+import type { Node as PMNode, Schema } from '@tiptap/pm/model'
+import { Selection, TextSelection } from '@tiptap/pm/state'
 
 export interface SlashItem {
   id: string
@@ -23,6 +25,80 @@ function applyHeading(e: Editor, r: Range, level: 1 | 2 | 3): void {
   } else {
     e.chain().focus().deleteRange(r).setNode('heading', { level }).run()
   }
+}
+
+type ListKind = 'bullet' | 'ordered' | 'task'
+
+function createListNode(schema: Schema, kind: ListKind, text: string): PMNode | null {
+  const paragraph = schema.nodes.paragraph?.create(
+    null,
+    text ? schema.text(text.replace(/\s*\n\s*/g, ' ')) : null,
+  )
+  if (!paragraph) return null
+
+  if (kind === 'task') {
+    const item = schema.nodes.taskItem?.create({ checked: false }, paragraph)
+    if (!item) return null
+    return schema.nodes.taskList?.create(null, item) ?? null
+  }
+
+  const item = schema.nodes.listItem?.create(null, paragraph)
+  if (!item) return null
+  if (kind === 'ordered') return schema.nodes.orderedList?.create(null, item) ?? null
+  return schema.nodes.bulletList?.create(null, item) ?? null
+}
+
+function listCursorPos(doc: PMNode, listPos: number, list: PMNode, textLength: number): number {
+  let cursor: number | null = null
+  doc.nodesBetween(listPos, listPos + list.nodeSize, (node, pos) => {
+    if (!node.isTextblock) return cursor === null
+    cursor = pos + 1 + Math.min(textLength, node.content.size)
+    return false
+  })
+  return cursor ?? listPos
+}
+
+function applyList(e: Editor, r: Range, kind: ListKind): void {
+  const handled = e.commands.command(({ state, dispatch }) => {
+    const $from = state.doc.resolve(r.from)
+    const blockDepth =
+      $from.parent.type.name === 'sourceBlock' ||
+      $from.parent.type.name === 'paragraph' ||
+      $from.parent.type.name === 'heading'
+        ? $from.depth
+        : -1
+
+    if (blockDepth !== 1 || state.doc.resolve(r.to).depth !== blockDepth) return false
+
+    const block = $from.node(blockDepth)
+    const blockStart = $from.start(blockDepth)
+    const blockEnd = $from.end(blockDepth)
+    const itemText = (
+      state.doc.textBetween(blockStart, r.from) + state.doc.textBetween(r.to, blockEnd)
+    ).trim()
+    const list = createListNode(state.schema, kind, itemText)
+    if (!list) return false
+    if (!dispatch) return true
+
+    const blockPos = $from.before(blockDepth)
+    const tr = state.tr.replaceWith(blockPos, blockPos + block.nodeSize, list)
+    const textLen = itemText ? itemText.replace(/\s*\n\s*/g, ' ').length : 0
+    const cursor = listCursorPos(tr.doc, blockPos, list, textLen)
+    tr.setSelection(
+      cursor > blockPos
+        ? TextSelection.create(tr.doc, cursor)
+        : Selection.near(tr.doc.resolve(Math.min(blockPos, tr.doc.content.size))),
+    )
+    dispatch(tr.scrollIntoView())
+    return true
+  })
+
+  if (handled) return
+
+  const chain = e.chain().focus().deleteRange(r)
+  if (kind === 'bullet') chain.toggleBulletList().run()
+  else if (kind === 'ordered') chain.toggleOrderedList().run()
+  else chain.toggleTaskList().run()
 }
 
 export const SLASH_ITEMS: SlashItem[] = [
@@ -52,21 +128,21 @@ export const SLASH_ITEMS: SlashItem[] = [
     label: 'Bullet List',
     hint: '- item',
     search: ['bullet', 'ul', 'list', 'unordered'],
-    apply: (e, r) => e.chain().focus().deleteRange(r).toggleBulletList().run(),
+    apply: (e, r) => applyList(e, r, 'bullet'),
   },
   {
     id: 'ordered',
     label: 'Ordered List',
     hint: '1. item',
     search: ['ordered', 'numbered', 'ol', 'list'],
-    apply: (e, r) => e.chain().focus().deleteRange(r).toggleOrderedList().run(),
+    apply: (e, r) => applyList(e, r, 'ordered'),
   },
   {
     id: 'task',
     label: 'Task List',
     hint: '- [ ]',
     search: ['task', 'todo', 'check', 'checkbox'],
-    apply: (e, r) => e.chain().focus().deleteRange(r).toggleTaskList().run(),
+    apply: (e, r) => applyList(e, r, 'task'),
   },
   {
     id: 'quote',

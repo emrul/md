@@ -23,7 +23,7 @@ export const SlashMenu = Extension.create({
           if (!q) return SLASH_ITEMS
           return SLASH_ITEMS.filter(
             (item) =>
-              item.label.toLowerCase().includes(q) || item.search.some((s) => s.includes(q)),
+              item.label.toLowerCase().includes(q) || item.search.some((s) => s.startsWith(q)),
           )
         },
         command: ({ editor, range, props }) => {

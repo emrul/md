@@ -48,24 +48,36 @@ export class SlashPopup {
 
   onKeyDown(e: KeyboardEvent): boolean {
     if (this.el.style.display === 'none') return false
-    if (this.items.length === 0 && e.key !== 'Escape') return false
+    if (this.items.length === 0) {
+      if (e.key === 'Enter' || e.key === 'Tab' || e.key === 'Escape') {
+        e.preventDefault()
+        this.unmount()
+        return true
+      }
+      return false
+    }
 
     if (e.key === 'ArrowDown') {
+      e.preventDefault()
       this.selectedIndex = (this.selectedIndex + 1) % this.items.length
       this.render()
       return true
     }
     if (e.key === 'ArrowUp') {
+      e.preventDefault()
       this.selectedIndex = (this.selectedIndex - 1 + this.items.length) % this.items.length
       this.render()
       return true
     }
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault()
       const item = this.items[this.selectedIndex]
       if (item) this.onPick(item)
+      else this.unmount()
       return true
     }
     if (e.key === 'Escape') {
+      e.preventDefault()
       this.unmount()
       return true
     }
