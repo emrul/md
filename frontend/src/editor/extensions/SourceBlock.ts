@@ -55,27 +55,47 @@ interface InlinePattern {
   delim: number
 }
 
+interface MdInlineToken {
+  type: string
+  nesting: number
+  markup: string
+  content: string
+  attrs: [string, string][]
+}
+
+interface MdInlineParser {
+  parseInline(src: string, env: object): { children?: MdInlineToken[] | null }[]
+}
+
+interface MarkdownParserStorage {
+  parser?: {
+    md?: MdInlineParser
+  }
+}
+
+type InlineTokenReader = (text: string) => MdInlineToken[] | null
+
 // Order matters: the two-char delimiters (**, __, ~~) run before the one-char
 // emphasis so a pair isn't eaten as two singles. The single * / _ patterns use
 // lookarounds so a delimiter adjacent to its double (e.g. the * inside **bold**)
 // is left to the bold rule. Covers both markdown emphasis spellings since loaded
 // files (and the serializer) may use either.
 const PATTERNS: InlinePattern[] = [
-  { re: /\*\*([^*\n]+)\*\*/g, cls: 'sb-bold', delim: 2 },
-  { re: /__([^_\n]+)__/g, cls: 'sb-bold', delim: 2 },
-  { re: /~~([^~\n]+)~~/g, cls: 'sb-strike', delim: 2 },
-  { re: /(?<!\*)\*(?!\*)([^*\n]+?)(?<!\*)\*(?!\*)/g, cls: 'sb-italic', delim: 1 },
-  { re: /(?<!_)_(?!_)([^_\n]+?)(?<!_)_(?!_)/g, cls: 'sb-italic', delim: 1 },
-  { re: /`([^`\n]+)`/g, cls: 'sb-code', delim: 1 },
+  { re: /\*\*([^*]+)\*\*/g, cls: 'sb-bold', delim: 2 },
+  { re: /__([^_]+)__/g, cls: 'sb-bold', delim: 2 },
+  { re: /~~([^~]+)~~/g, cls: 'sb-strike', delim: 2 },
+  { re: /(?<!\*)\*(?!\*)([^*]+?)(?<!\*)\*(?!\*)/g, cls: 'sb-italic', delim: 1 },
+  { re: /(?<!_)_(?!_)([^_]+?)(?<!_)_(?!_)/g, cls: 'sb-italic', delim: 1 },
+  { re: /`([^`]+)`/g, cls: 'sb-code', delim: 1 },
 ]
 
 const HEADING_RE = /^(#{1,6}) /
 // Block/inline image: ![alt](url). Render the image and hide the raw syntax in
 // hybrid mode, including when the image block has focus.
-const IMAGE_RE = /!\[([^\]\n]*)\]\(([^)\n]+)\)/g
+const IMAGE_RE = /!\[([^\]]*)\]\(([^)\n]+)\)/g
 // Inline link: [text](url). The text renders as a link; the brackets and the
 // (url) are markers (hidden when idle, dimmed when the caret is in the block).
-const LINK_RE = /(?<!!)\[([^\]\n]+)\]\([^)\n]+\)/g
+const LINK_RE = /(?<!!)\[([^\]]+)\]\([^)\n]+\)/g
 // Inline math: $…$, excluding $$ (block) and escaped \$.
 const MATH_RE = /(?<![\\$])\$([^$\n]+?)\$(?!\$)/g
 
@@ -88,12 +108,232 @@ function makeImageWidget(src: string, alt: string, sourcePath: string | null): H
   return img
 }
 
+function marker(
+  out: Decoration[],
+  base: number,
+  from: number,
+  to: number,
+  markerCls: string,
+): void {
+  if (to > from) out.push(Decoration.inline(base + from, base + to, { class: markerCls }))
+}
+
+function styled(out: Decoration[], base: number, from: number, to: number, cls: string): void {
+  if (to > from) out.push(Decoration.inline(base + from, base + to, { class: cls }))
+}
+
+function consumeText(src: string, cursor: number, content: string): number {
+  if (!content) return cursor
+  return src.startsWith(content, cursor) ? cursor + content.length : -1
+}
+
+function consumeBreak(src: string, cursor: number, hard: boolean): number {
+  if (!hard) return src[cursor] === '\n' ? cursor + 1 : -1
+  if (src.startsWith('\\\n', cursor)) return cursor + 2
+  const m = / {2,}\n/y
+  m.lastIndex = cursor
+  const match = m.exec(src)
+  return match ? cursor + match[0].length : -1
+}
+
+function consumeDelimited(
+  src: string,
+  cursor: number,
+  token: MdInlineToken,
+): [number, number] | null {
+  const delim = token.markup || '`'
+  if (!src.startsWith(delim, cursor)) return null
+  const contentStart = cursor + delim.length
+  const close = src.indexOf(delim, contentStart)
+  if (close < 0) return null
+  return [close, close + delim.length]
+}
+
+function consumeInlineMath(src: string, cursor: number): [number, number] | null {
+  if (src[cursor] !== '$' || src[cursor + 1] === '$') return null
+  let close = cursor + 1
+  while (close < src.length) {
+    const ch = src[close]
+    if (ch === '\n') return null
+    if (ch === '\\' && src[close + 1] === '$') {
+      close += 2
+      continue
+    }
+    if (ch === '$') return [close, close + 1]
+    close += 1
+  }
+  return null
+}
+
+function consumeInlineImage(
+  src: string,
+  cursor: number,
+): { end: number; alt: string; dest: string } | null {
+  const re = /!\[([^\]\n]*)\]\(([^)\n]+)\)/y
+  re.lastIndex = cursor
+  const m = re.exec(src)
+  return m ? { end: cursor + m[0].length, alt: m[1], dest: m[2] } : null
+}
+
+function closeInlineLink(src: string, cursor: number): number {
+  if (src[cursor] === '>') return cursor + 1
+  if (src[cursor] !== ']' || src[cursor + 1] !== '(') return -1
+  const end = src.indexOf(')', cursor + 2)
+  return end < 0 ? -1 : end + 1
+}
+
+function decorateWithMarkdownTokens(
+  text: string,
+  base: number,
+  active: boolean,
+  sourcePath: string | null,
+  markerCls: string,
+  out: Decoration[],
+  readInlineTokens: InlineTokenReader,
+): boolean {
+  const tokens = readInlineTokens(text)
+  if (!tokens) return false
+
+  let cursor = 0
+  const marks: { type: string; cls: string; markerStart: number; contentStart: number }[] = []
+  const links: { markerStart: number; textStart: number }[] = []
+
+  for (const token of tokens) {
+    switch (token.type) {
+      case 'text':
+      case 'text_special': {
+        cursor = consumeText(text, cursor, token.content)
+        if (cursor < 0) return false
+        break
+      }
+      case 'softbreak': {
+        cursor = consumeBreak(text, cursor, false)
+        if (cursor < 0) return false
+        break
+      }
+      case 'hardbreak': {
+        cursor = consumeBreak(text, cursor, true)
+        if (cursor < 0) return false
+        break
+      }
+      case 'strong_open':
+      case 'em_open':
+      case 's_open': {
+        const cls =
+          token.type === 'strong_open'
+            ? 'sb-bold'
+            : token.type === 'em_open'
+              ? 'sb-italic'
+              : 'sb-strike'
+        const end = cursor + token.markup.length
+        if (!token.markup || !text.startsWith(token.markup, cursor)) return false
+        marks.push({
+          type: token.type.replace('_open', ''),
+          cls,
+          markerStart: cursor,
+          contentStart: end,
+        })
+        cursor = end
+        break
+      }
+      case 'strong_close':
+      case 'em_close':
+      case 's_close': {
+        const type = token.type.replace('_close', '')
+        const frame = marks.pop()
+        const end = cursor + token.markup.length
+        if (
+          !frame ||
+          frame.type !== type ||
+          !token.markup ||
+          !text.startsWith(token.markup, cursor)
+        ) {
+          return false
+        }
+        styled(out, base, frame.contentStart, cursor, frame.cls)
+        marker(out, base, frame.markerStart, frame.contentStart, markerCls)
+        marker(out, base, cursor, end, markerCls)
+        cursor = end
+        break
+      }
+      case 'code_inline': {
+        const span = consumeDelimited(text, cursor, token)
+        if (!span) return false
+        const [contentEnd, end] = span
+        styled(out, base, cursor + (token.markup || '`').length, contentEnd, 'sb-code')
+        marker(out, base, cursor, cursor + (token.markup || '`').length, markerCls)
+        marker(out, base, contentEnd, end, markerCls)
+        cursor = end
+        break
+      }
+      case 'math_inline': {
+        const span = consumeInlineMath(text, cursor)
+        if (!span) return false
+        const [contentEnd, end] = span
+        if (active) {
+          marker(out, base, cursor, cursor + 1, markerCls)
+          marker(out, base, contentEnd, end, markerCls)
+        } else {
+          out.push(Decoration.inline(base + cursor, base + end, { class: 'sb-hidden' }))
+          out.push(
+            Decoration.widget(base + cursor, () => renderInlineMath(token.content), {
+              key: `m:${token.content}`,
+              side: -1,
+            }),
+          )
+        }
+        cursor = end
+        break
+      }
+      case 'image': {
+        const image = consumeInlineImage(text, cursor)
+        if (!image) return false
+        out.push(Decoration.inline(base + cursor, base + image.end, { class: 'sb-hidden' }))
+        out.push(
+          Decoration.widget(
+            base + cursor,
+            () => makeImageWidget(image.dest, image.alt, sourcePath),
+            {
+              key: `img:${base + cursor}:${text.slice(cursor, image.end)}`,
+              side: -1,
+            },
+          ),
+        )
+        cursor = image.end
+        break
+      }
+      case 'link_open': {
+        const opener = token.markup === 'autolink' ? '<' : '['
+        if (!text.startsWith(opener, cursor)) return false
+        links.push({ markerStart: cursor, textStart: cursor + opener.length })
+        cursor += opener.length
+        break
+      }
+      case 'link_close': {
+        const frame = links.pop()
+        const end = closeInlineLink(text, cursor)
+        if (!frame || end < 0) return false
+        styled(out, base, frame.textStart, cursor, 'sb-link')
+        marker(out, base, frame.markerStart, frame.textStart, markerCls)
+        marker(out, base, cursor, end, markerCls)
+        cursor = end
+        break
+      }
+      default:
+        return false
+    }
+  }
+
+  return cursor === text.length && marks.length === 0 && links.length === 0
+}
+
 function decorateBlock(
   text: string,
   base: number,
   active: boolean,
   sourcePath: string | null,
   out: Decoration[],
+  readInlineTokens: InlineTokenReader,
 ): void {
   const markerCls = active ? 'sb-marker' : 'sb-marker sb-hidden'
   let scanStart = 0
@@ -102,6 +342,22 @@ function decorateBlock(
     scanStart = h[0].length
     out.push(Decoration.inline(base, base + scanStart, { class: markerCls }))
   }
+
+  const body = text.slice(scanStart)
+  if (
+    decorateWithMarkdownTokens(
+      body,
+      base + scanStart,
+      active,
+      sourcePath,
+      markerCls,
+      out,
+      readInlineTokens,
+    )
+  ) {
+    return
+  }
+
   IMAGE_RE.lastIndex = scanStart
   let im: RegExpExecArray | null
   while ((im = IMAGE_RE.exec(text)) !== null) {
@@ -170,6 +426,7 @@ function compute(
   state: EditorState,
   revealPos: number | null,
   getSourcePath: () => string | null,
+  readInlineTokens: InlineTokenReader,
 ): DecorationSet {
   const out: Decoration[] = []
   const { doc, selection } = state
@@ -180,7 +437,7 @@ function compute(
       (selection.from > pos && selection.from < pos + node.nodeSize) || revealPos === pos
     const h = HEADING_RE.exec(node.textContent)
     if (h) out.push(Decoration.node(pos, pos + node.nodeSize, { class: `sb-h${h[1].length}` }))
-    decorateBlock(node.textContent, pos + 1, active, sourcePath, out)
+    decorateBlock(node.textContent, pos + 1, active, sourcePath, out, readInlineTokens)
     return false
   })
   return DecorationSet.create(doc, out)
@@ -380,13 +637,22 @@ export const SourceBlock = TiptapNode.create<SourceBlockOptions, SourceBlockStor
   addProseMirrorPlugins() {
     let lastWasVertical = false
     const getSourcePath = this.options.getSourcePath
+    const readInlineTokens: InlineTokenReader = (text) => {
+      const md = (this.editor.storage.markdown as MarkdownParserStorage | undefined)?.parser?.md
+      if (!md?.parseInline) return null
+      try {
+        return md.parseInline(text, {})[0]?.children ?? []
+      } catch {
+        return null
+      }
+    }
 
     return [
       new Plugin<DecoState>({
         key: decoKey,
         state: {
           init: (_config, state) => ({
-            set: compute(state, null, getSourcePath),
+            set: compute(state, null, getSourcePath, readInlineTokens),
             revealPos: null,
             pending: null,
           }),
@@ -405,7 +671,11 @@ export const SourceBlock = TiptapNode.create<SourceBlockOptions, SourceBlockStor
               pending = null // drop any pending placement across edits
             }
             if (tr.docChanged || tr.selectionSet || meta) {
-              return { set: compute(next, revealPos, getSourcePath), revealPos, pending }
+              return {
+                set: compute(next, revealPos, getSourcePath, readInlineTokens),
+                revealPos,
+                pending,
+              }
             }
             return { set: value.set, revealPos, pending }
           },
