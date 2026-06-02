@@ -9,6 +9,7 @@ import { getMarkdown, setMarkdown } from '../editor/serialize/markdown'
 import { linkHrefAt } from '../editor/extensions/LinkOpen'
 import { replaceSelectionWithMarkdown } from '../editor/extensions/MarkdownPaste'
 import { getRenderMode, switchRenderMode, type RenderMode } from '../editor/mode'
+import { bindBubbleMenu, createBubbleMenu } from '../ui/bubbleMenu'
 
 // Minimal Wails-runtime stub so any binding-importing module doesn't throw if
 // it touches window._wails at load. The editor core doesn't call bindings at
@@ -38,6 +39,7 @@ const editor = createEditor({
   getSourcePath: () => null,
   getReadOnly: () => harnessReadOnly,
 })
+bindBubbleMenu(createBubbleMenu(bubble), { editor } as Parameters<typeof bindBubbleMenu>[1])
 
 // Test hooks for the headless driver.
 const harness = {

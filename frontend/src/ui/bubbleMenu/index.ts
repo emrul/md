@@ -73,6 +73,35 @@ interface ShouldShowProps {
   to: number
 }
 
+function resolvedPosHasAncestor(state: EditorState, pos: number, typeName: string): boolean {
+  const safePos = Math.max(0, Math.min(pos, state.doc.content.size))
+  const $pos = state.doc.resolve(safePos)
+  for (let depth = $pos.depth; depth > 0; depth--) {
+    if ($pos.node(depth).type.name === typeName) return true
+  }
+  return false
+}
+
+function selectionTouchesNodeType(
+  state: EditorState,
+  from: number,
+  to: number,
+  typeName: string,
+): boolean {
+  if (resolvedPosHasAncestor(state, from, typeName)) return true
+  if (resolvedPosHasAncestor(state, to, typeName)) return true
+
+  let found = false
+  state.doc.nodesBetween(from, to, (node) => {
+    if (node.type.name === typeName) {
+      found = true
+      return false
+    }
+    return !found
+  })
+  return found
+}
+
 export function bubbleMenuShouldShow(props: ShouldShowProps): boolean {
   // The bubble menu is all editing actions — never show it on a read-only
   // (Examples) doc, where selection is only for reading/copying.
@@ -82,8 +111,7 @@ export function bubbleMenuShouldShow(props: ShouldShowProps): boolean {
   if (!hasEditorFocus) return false
   if (linkModes.get(props.editor)) return true
   if (props.from === props.to) return false
-  const node = props.state.doc.nodeAt(props.from)
-  if (node?.type.name === 'codeBlock') return false
+  if (selectionTouchesNodeType(props.state, props.from, props.to, 'codeBlock')) return false
   return true
 }
 
