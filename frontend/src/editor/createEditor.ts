@@ -16,6 +16,7 @@ import { EnhancedCodeBlock } from './extensions/CodeBlock'
 import { lowlight } from './extensions/lowlight'
 import { MathInline, MathBlock } from './extensions/Math'
 import { SourceBlock } from './extensions/SourceBlock'
+import { CodeFenceInput } from './extensions/CodeFenceInput'
 import { RawParagraph, RawHeading, SourceRawInvalidator } from './extensions/SourceRaw'
 import { LinkOpen } from './extensions/LinkOpen'
 import { LinkPreview } from './extensions/LinkPreview'
@@ -99,6 +100,7 @@ export function createEditor(opts: CreateEditorOptions): Editor {
       MathInline,
       MathBlock,
       SourceBlock.configure({ getSourcePath: opts.getSourcePath ?? (() => null) }),
+      CodeFenceInput,
       HeadingCycle,
       SlashMenu,
       MarkdownPaste,
