@@ -196,7 +196,7 @@ export function mountToc(
     activeIndex = -1
   }
 
-  function refresh(): void {
+  function refreshNow(): void {
     const tab = tm.active()
     const scrollEl = tab?.dom.hybridContainer ?? null
     rebindScroll(scrollEl)
@@ -215,6 +215,20 @@ export function mountToc(
     positionPanel()
     if (panelOpen) renderPanel()
     updateActive()
+  }
+
+  // collectHeadings() runs querySelectorAll over the whole editor DOM and
+  // updateActive() reads a bounding rect per heading — both scale with the
+  // document and would jank typing if run on every keystroke. The outline only
+  // changes when headings do, so debounce: it settles shortly after typing stops.
+  // (Scroll-driven active tracking has its own rAF path and is unaffected.)
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null
+  function refresh(): void {
+    if (refreshTimer !== null) clearTimeout(refreshTimer)
+    refreshTimer = setTimeout(() => {
+      refreshTimer = null
+      refreshNow()
+    }, 150)
   }
 
   button.addEventListener('click', (e) => {

@@ -69,7 +69,13 @@ export function mountStatusbar(tm: TabManager, explorer: ExplorerState): { refre
     })
     .catch(() => {})
 
-  const refresh = (): void => {
+  // Word/char/line/token counts require serializing the whole doc to markdown and
+  // then several O(n) scans of it. Doing that synchronously on every keystroke is
+  // what makes typing into a large file lag, and the counts don't need to track
+  // mid-keystroke — so debounce them. The cheap chips (git/path/mode) stay live.
+  let countsTimer: ReturnType<typeof setTimeout> | null = null
+
+  const refreshCounts = (): void => {
     const tab = tm.active()
     const md = tab?.getCurrentMarkdown() ?? ''
     if (wordsEl) wordsEl.textContent = `${countWords(md)} words`
@@ -77,6 +83,19 @@ export function mountStatusbar(tm: TabManager, explorer: ExplorerState): { refre
     const lines = md ? md.split('\n').length : 1
     if (linesEl) linesEl.textContent = `${lines} lines`
     if (tokensEl) tokensEl.textContent = `~${estimateTokens(md)} tokens`
+  }
+
+  const scheduleCounts = (): void => {
+    if (countsTimer !== null) clearTimeout(countsTimer)
+    countsTimer = setTimeout(() => {
+      countsTimer = null
+      refreshCounts()
+    }, 150)
+  }
+
+  const refresh = (): void => {
+    const tab = tm.active()
+    scheduleCounts()
 
     // Git branch chip.
     if (gitEl) {

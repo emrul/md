@@ -99,6 +99,8 @@ export class Tab {
    */
   private savedMarkdown = ''
   private listeners: Set<Listener> = new Set()
+  /** Pending debounced reconcile for the dirty flag (see refreshModifiedFast). */
+  private reconcileTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(
     public readonly id: string,
@@ -132,8 +134,53 @@ export class Tab {
   }
 
   setModified(value: boolean): void {
+    if (this.modified === value) return
     this.modified = value
     this.notify()
+  }
+
+  /**
+   * Cheap dirty-flag update for the typing hot path. Serializing the whole doc to
+   * markdown on every keystroke (what isAtSavedState does) scales with document
+   * size and is the main thing that makes typing into a large file lag, so trust
+   * the undo-depth signal here: matching depth ⇒ definitely clean; differing depth
+   * ⇒ treat as modified immediately. A debounced reconcile then runs the
+   * authoritative markdown comparison once typing settles, to catch the one case
+   * the depth signal can't — content returning to the saved state while the depth
+   * differs (a content-neutral mode-switch round-trip). Undo-back-to-saved already
+   * restores the depth, so that common case is handled synchronously here.
+   */
+  refreshModifiedFast(): void {
+    const inSource = this.viewController?.mode === 'source'
+    if (inSource) {
+      // Source-mode edits live in CodeMirror and never move PM undo depth, so the
+      // cheap signal is invalid. This isn't a hot path (source typing notifies via
+      // the view controller, not editor.onUpdate), so use the authoritative check.
+      this.cancelReconcile()
+      this.setModified(!this.isAtSavedState())
+      return
+    }
+    if (undoDepth(this.editor.state) === this.savedAtDepth) {
+      this.cancelReconcile()
+      this.setModified(false)
+      return
+    }
+    this.setModified(true)
+    this.scheduleReconcile()
+  }
+
+  private scheduleReconcile(): void {
+    if (this.reconcileTimer !== null) clearTimeout(this.reconcileTimer)
+    this.reconcileTimer = setTimeout(() => {
+      this.reconcileTimer = null
+      this.setModified(!this.isAtSavedState())
+    }, 400)
+  }
+
+  private cancelReconcile(): void {
+    if (this.reconcileTimer === null) return
+    clearTimeout(this.reconcileTimer)
+    this.reconcileTimer = null
   }
 
   /** Called after loading content from disk (or creating an empty tab). Clears
@@ -142,6 +189,7 @@ export class Tab {
    * external-change check diffs against — distinct from the normalized
    * `savedMarkdown`). Pass the raw bytes; defaults to empty for a blank tab. */
   markLoaded(diskContent = ''): void {
+    this.cancelReconcile()
     clearEditorHistory(this.editor)
     this.savedAtDepth = 0
     this.savedMarkdown = this.getCurrentMarkdown()
@@ -156,6 +204,7 @@ export class Tab {
    * new on-disk content — recording it lets the next external-change check
    * recognise our own save and skip a reload. */
   markSaved(): void {
+    this.cancelReconcile()
     this.savedAtDepth = undoDepth(this.editor.state)
     this.savedMarkdown = this.getCurrentMarkdown()
     this.diskContent = this.savedMarkdown
@@ -227,6 +276,7 @@ export class Tab {
   }
 
   destroy(): void {
+    this.cancelReconcile()
     for (const d of this.disposables) d.destroy()
     this.disposables = []
     this.editor.destroy()

@@ -30,8 +30,21 @@ export function renderMarkdownToHtml(editor: Editor, md: string): string {
   return (editor.storage.markdown as unknown as MarkdownParserIO).parser.parse(md)
 }
 
+// Serializing the whole doc to markdown is O(doc size), and on a single edit it
+// gets called more than once (dirty-state check + status-bar counts). Memoize on
+// the ProseMirror doc *identity*: PM docs are immutable, so a given doc node maps
+// to exactly one markdown string, and every transaction produces a fresh doc —
+// which is a new key, so the cache self-invalidates and old entries are GC'd.
+// Keyed by doc node, so it's correct across multiple editors sharing this module.
+const markdownByDoc = new WeakMap<object, string>()
+
 export function getMarkdown(editor: Editor): string {
-  return storage(editor).getMarkdown()
+  const doc = editor.state.doc
+  const cached = markdownByDoc.get(doc)
+  if (cached !== undefined) return cached
+  const md = storage(editor).getMarkdown()
+  markdownByDoc.set(doc, md)
+  return md
 }
 
 export function setMarkdown(editor: Editor, text: string, mode?: RenderMode): void {

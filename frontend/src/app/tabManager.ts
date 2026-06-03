@@ -116,7 +116,7 @@ export class TabManager {
       onUpdate: () => {
         const t = this.findById(id)
         if (!t) return
-        t.setModified(!t.isAtSavedState())
+        t.refreshModifiedFast()
         this.onAfterTabContentChange()
       },
       onSelectionUpdate: () => this.onAfterSelectionUpdate(),

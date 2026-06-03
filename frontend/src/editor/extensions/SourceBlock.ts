@@ -422,6 +422,32 @@ function decorateBlock(
 }
 
 // revealPos forces a block active even when the caret isn't inside it yet.
+function isBlockActive(
+  selectionFrom: number,
+  pos: number,
+  nodeSize: number,
+  revealPos: number | null,
+): boolean {
+  return (selectionFrom > pos && selectionFrom < pos + nodeSize) || revealPos === pos
+}
+
+// Decorations for a SINGLE source block (heading sizing + inline markers).
+// Tokenizing markdown per block is the expensive part, so the plugin's apply()
+// recomputes only the blocks an edit or caret move actually touched instead of
+// re-running this over the whole document on every transaction.
+function computeBlock(
+  node: PMNode,
+  pos: number,
+  active: boolean,
+  sourcePath: string | null,
+  out: Decoration[],
+  readInlineTokens: InlineTokenReader,
+): void {
+  const h = HEADING_RE.exec(node.textContent)
+  if (h) out.push(Decoration.node(pos, pos + node.nodeSize, { class: `sb-h${h[1].length}` }))
+  decorateBlock(node.textContent, pos + 1, active, sourcePath, out, readInlineTokens)
+}
+
 function compute(
   state: EditorState,
   revealPos: number | null,
@@ -433,11 +459,14 @@ function compute(
   const sourcePath = getSourcePath()
   doc.descendants((node, pos) => {
     if (node.type.name !== 'sourceBlock') return true
-    const active =
-      (selection.from > pos && selection.from < pos + node.nodeSize) || revealPos === pos
-    const h = HEADING_RE.exec(node.textContent)
-    if (h) out.push(Decoration.node(pos, pos + node.nodeSize, { class: `sb-h${h[1].length}` }))
-    decorateBlock(node.textContent, pos + 1, active, sourcePath, out, readInlineTokens)
+    computeBlock(
+      node,
+      pos,
+      isBlockActive(selection.from, pos, node.nodeSize, revealPos),
+      sourcePath,
+      out,
+      readInlineTokens,
+    )
     return false
   })
   return DecorationSet.create(doc, out)
@@ -656,7 +685,7 @@ export const SourceBlock = TiptapNode.create<SourceBlockOptions, SourceBlockStor
             revealPos: null,
             pending: null,
           }),
-          apply: (tr, value, _old, next): DecoState => {
+          apply: (tr, value, oldState, next): DecoState => {
             const meta = tr.getMeta(decoKey) as
               | { revealPos?: number | null; pending?: Pending | null }
               | undefined
@@ -670,14 +699,67 @@ export const SourceBlock = TiptapNode.create<SourceBlockOptions, SourceBlockStor
               if (revealPos !== null) revealPos = tr.mapping.map(revealPos)
               pending = null // drop any pending placement across edits
             }
-            if (tr.docChanged || tr.selectionSet || meta) {
-              return {
-                set: compute(next, revealPos, getSourcePath, readInlineTokens),
-                revealPos,
-                pending,
+            if (!tr.docChanged && !tr.selectionSet && !meta) {
+              return { set: value.set, revealPos, pending }
+            }
+
+            // Incremental rebuild. Re-tokenizing every block on each keystroke
+            // makes typing scale with document size (laggy in large files), so
+            // carry the prior decorations across — remapped through any doc
+            // change — and recompute only the blocks the edit or the active-block
+            // transition actually touched. Per-keystroke work stays proportional
+            // to the edit, not the whole doc.
+            const sourcePath = getSourcePath()
+            let set = tr.docChanged ? value.set.map(tr.mapping, next.doc) : value.set
+
+            // Source-block start positions (in the NEW doc) that need rebuilding.
+            const dirty = new Set<number>()
+
+            // 1. Blocks overlapping the changed ranges of each step.
+            if (tr.docChanged) {
+              const size = next.doc.content.size
+              for (const step of tr.steps) {
+                step.getMap().forEach((_fromA, _toA, fromB, toB) => {
+                  next.doc.nodesBetween(Math.max(0, fromB), Math.min(toB, size), (node, pos) => {
+                    if (node.type.name === 'sourceBlock') {
+                      dirty.add(pos)
+                      return false
+                    }
+                    return true
+                  })
+                })
               }
             }
-            return { set: value.set, revealPos, pending }
+
+            // 2. The block active before and the one active now: their markers
+            //    show/hide on the transition, so both must be rebuilt. This is
+            //    what makes a plain caret move between blocks cheap too.
+            const oldSelBlock = enclosingSourceBlock(oldState, oldState.selection.from)
+            if (oldSelBlock >= 0) dirty.add(tr.docChanged ? tr.mapping.map(oldSelBlock) : oldSelBlock)
+            const newSelBlock = enclosingSourceBlock(next, next.selection.from)
+            if (newSelBlock >= 0) dirty.add(newSelBlock)
+            if (value.revealPos !== null) {
+              dirty.add(tr.docChanged ? tr.mapping.map(value.revealPos) : value.revealPos)
+            }
+            if (revealPos !== null) dirty.add(revealPos)
+
+            for (const pos of dirty) {
+              const node = next.doc.nodeAt(pos)
+              if (!node || node.type.name !== 'sourceBlock') continue
+              set = set.remove(set.find(pos, pos + node.nodeSize))
+              const fresh: Decoration[] = []
+              computeBlock(
+                node,
+                pos,
+                isBlockActive(next.selection.from, pos, node.nodeSize, revealPos),
+                sourcePath,
+                fresh,
+                readInlineTokens,
+              )
+              if (fresh.length) set = set.add(next.doc, fresh)
+            }
+
+            return { set, revealPos, pending }
           },
         },
 
