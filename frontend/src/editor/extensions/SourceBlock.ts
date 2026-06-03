@@ -735,7 +735,8 @@ export const SourceBlock = TiptapNode.create<SourceBlockOptions, SourceBlockStor
             //    show/hide on the transition, so both must be rebuilt. This is
             //    what makes a plain caret move between blocks cheap too.
             const oldSelBlock = enclosingSourceBlock(oldState, oldState.selection.from)
-            if (oldSelBlock >= 0) dirty.add(tr.docChanged ? tr.mapping.map(oldSelBlock) : oldSelBlock)
+            if (oldSelBlock >= 0)
+              dirty.add(tr.docChanged ? tr.mapping.map(oldSelBlock) : oldSelBlock)
             const newSelBlock = enclosingSourceBlock(next, next.selection.from)
             if (newSelBlock >= 0) dirty.add(newSelBlock)
             if (value.revealPos !== null) {
@@ -746,7 +747,15 @@ export const SourceBlock = TiptapNode.create<SourceBlockOptions, SourceBlockStor
             for (const pos of dirty) {
               const node = next.doc.nodeAt(pos)
               if (!node || node.type.name !== 'sourceBlock') continue
-              set = set.remove(set.find(pos, pos + node.nodeSize))
+              const end = pos + node.nodeSize
+              // find() is boundary-inclusive, so find(pos, end) also returns an
+              // ADJACENT block's heading node decoration — a `sb-hN` deco spans
+              // exactly [pos, end], so its edge touches the neighbour's boundary.
+              // Removing those stale hits would strip the neighbour's heading
+              // sizing (the heading-flicker-across-mode-switch bug). Keep only
+              // decorations that lie fully within this block.
+              const stale = set.find(pos, end).filter((d) => d.from >= pos && d.to <= end)
+              set = set.remove(stale)
               const fresh: Decoration[] = []
               computeBlock(
                 node,
