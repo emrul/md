@@ -4,6 +4,45 @@
   display: none;
 }
 
+.cb-lang-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cb-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  color: #cdd6f4;
+  background: rgba(49, 50, 68, 0.92);
+  border: 1px solid rgba(205, 214, 244, 0.18);
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    background 120ms,
+    border-color 120ms,
+    color 120ms;
+}
+
+.cb-copy-btn:hover {
+  background: rgba(69, 71, 90, 0.96);
+  border-color: rgba(205, 214, 244, 0.35);
+}
+
+.cb-copy-btn.is-copied {
+  color: #a6e3a1;
+  border-color: rgba(166, 227, 161, 0.45);
+}
+
+.cb-copy-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
 .cb-lang-btn {
   display: inline-flex;
   align-items: center;

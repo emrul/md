@@ -126,7 +126,13 @@ export function createEditor(opts: CreateEditorOptions): Editor {
       }),
       Markdown.configure({
         html: false,
-        transformCopiedText: true,
+        // Copy yields standard plain text (the rendered text / cell contents),
+        // not serialized markdown. Leaving this on made copying a line carry its
+        // markdown syntax (`# `, `**…**`) and copying a table selection emit the
+        // serializer's `<table><tr><td>` HTML fallback — both non-standard.
+        // ProseMirror's default clipboard still puts proper HTML on the rich
+        // flavour, and internal copy/paste round-trips via its own slice data.
+        transformCopiedText: false,
         transformPastedText: true,
       }),
     ],

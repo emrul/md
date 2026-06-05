@@ -28,17 +28,36 @@ export interface LangPickerHandle {
   destroy: () => void
 }
 
+const COPY_ICON =
+  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5"/></svg>'
+const CHECK_ICON =
+  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-6.5"/></svg>'
+
 export function mountCodeBlockLangPicker(editor: Editor): LangPickerHandle {
   const root = document.createElement('div')
   root.className = 'cb-lang-picker'
   document.body.appendChild(root)
+
+  // Copy + language sit in one bar so the copy button lands to the left of the
+  // language dropdown.
+  const bar = document.createElement('div')
+  bar.className = 'cb-lang-bar'
+  root.appendChild(bar)
+
+  const copyBtn = document.createElement('button')
+  copyBtn.type = 'button'
+  copyBtn.className = 'cb-copy-btn'
+  copyBtn.innerHTML = COPY_ICON
+  copyBtn.title = 'Copy code'
+  copyBtn.setAttribute('aria-label', 'Copy code')
+  bar.appendChild(copyBtn)
 
   const button = document.createElement('button')
   button.type = 'button'
   button.className = 'cb-lang-btn'
   button.textContent = 'Plain Text'
   button.title = 'Change language'
-  root.appendChild(button)
+  bar.appendChild(button)
 
   const dropdown = document.createElement('div')
   dropdown.className = 'cb-lang-dropdown'
@@ -59,12 +78,19 @@ export function mountCodeBlockLangPicker(editor: Editor): LangPickerHandle {
   dropdown.append(filterWrap, list)
   root.appendChild(dropdown)
 
+  // `currentBlock` is the block the picker currently targets — derived from the
+  // selection (caret in a block) and the pointer (hovering a block), so the
+  // copy/language controls also surface on hover, not only on focus.
   let currentBlock: CodeBlockLocation | null = null
+  let selBlock: CodeBlockLocation | null = null
+  let hoverBlock: CodeBlockLocation | null = null
+  let pickerHovered = false
   let open = false
   let filterText = ''
   let selectedIndex = 0
   let filtered: LanguageOption[] = LANGUAGE_OPTIONS
   let positionRaf: number | null = null
+  let copyResetTimer: ReturnType<typeof setTimeout> | null = null
   let scrollRegion: HTMLElement | null = null
 
   // Nearest scrollable ancestor of the editor — its top edge is where the app
@@ -79,6 +105,76 @@ export function mountCodeBlockLangPicker(editor: Editor): LangPickerHandle {
     }
     scrollRegion = p
     return p
+  }
+
+  const writeClipboard = async (text: string): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      // Fallback for environments without async clipboard access.
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      try {
+        document.execCommand('copy')
+      } catch {
+        /* give up silently */
+      }
+      ta.remove()
+    }
+  }
+
+  const flashCopied = (): void => {
+    copyBtn.innerHTML = CHECK_ICON
+    copyBtn.classList.add('is-copied')
+    copyBtn.title = 'Copied'
+    if (copyResetTimer) clearTimeout(copyResetTimer)
+    copyResetTimer = setTimeout(() => {
+      copyBtn.innerHTML = COPY_ICON
+      copyBtn.classList.remove('is-copied')
+      copyBtn.title = 'Copy code'
+      copyResetTimer = null
+    }, 1200)
+  }
+
+  // Don't let the button steal the editor selection or trip the outside-click
+  // dropdown close.
+  copyBtn.addEventListener('mousedown', (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+  })
+  copyBtn.addEventListener('click', (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!currentBlock) return
+    void writeClipboard(currentBlock.node.textContent)
+    flashCopied()
+  })
+
+  // Resolve the code block (if any) the given DOM node sits in — used to surface
+  // the picker on hover. Covers the plain `<pre>` node view and the mermaid
+  // wrapper (whose `<pre>` is hidden behind the rendered diagram).
+  const codeBlockAt = (target: EventTarget | null): CodeBlockLocation | null => {
+    if (!(target instanceof HTMLElement)) return null
+    const el = target.closest('pre, .mermaid-block')
+    if (!el || !editor.view.dom.contains(el)) return null
+    const codeEl = el.querySelector('code')
+    if (!codeEl) return null
+    let pos: number
+    try {
+      pos = editor.view.posAtDOM(codeEl, 0)
+    } catch {
+      return null
+    }
+    const $pos = editor.state.doc.resolve(pos)
+    for (let d = $pos.depth; d > 0; d--) {
+      const node = $pos.node(d)
+      if (node.type.name === 'codeBlock') return { node, pos: $pos.before(d) }
+    }
+    return null
   }
 
   const setLanguage = (lang: string): void => {
@@ -253,12 +349,17 @@ export function mountCodeBlockLangPicker(editor: Editor): LangPickerHandle {
     })
   }
 
-  const refresh = (): void => {
-    const next = findCodeBlock(editor.state)
+  // Pick the block to show the picker for. While the dropdown is open or the
+  // pointer rests on the picker itself, hold the current target steady so the
+  // control doesn't slide out from under the user; otherwise a hovered block
+  // wins over the caret's block.
+  const updateTarget = (): void => {
+    const next = open || pickerHovered ? currentBlock : (hoverBlock ?? selBlock)
     if (!next) {
       currentBlock = null
-      closeDropdown()
-      root.style.display = 'none'
+      if (!open) {
+        root.style.display = 'none'
+      }
       return
     }
     currentBlock = next
@@ -267,11 +368,54 @@ export function mountCodeBlockLangPicker(editor: Editor): LangPickerHandle {
     schedulePosition()
   }
 
+  const refresh = (): void => {
+    selBlock = findCodeBlock(editor.state)
+    updateTarget()
+  }
+
   editor.on('selectionUpdate', refresh)
   editor.on('update', refresh)
   editor.on('focus', refresh)
   editor.on('blur', () => {
-    if (!open) root.style.display = 'none'
+    selBlock = null
+    updateTarget()
+  })
+
+  // Highlighted code is a thicket of spans, so mouseover fires constantly while
+  // the pointer stays inside one block. Track the hovered block element and skip
+  // the pos resolve + reposition when it hasn't changed.
+  let hoverEl: Element | null = null
+  const hoverElementOf = (target: EventTarget | null): Element | null =>
+    target instanceof HTMLElement ? target.closest('pre, .mermaid-block') : null
+
+  const onPointerOver = (e: MouseEvent): void => {
+    const el = hoverElementOf(e.target)
+    if (el === hoverEl) return
+    hoverEl = el
+    hoverBlock = codeBlockAt(e.target)
+    updateTarget()
+  }
+  const onPointerOut = (e: MouseEvent): void => {
+    const related = e.relatedTarget
+    // Moving onto the picker is not a leave — keep the current target.
+    if (related instanceof Node && root.contains(related)) return
+    const el = hoverElementOf(related)
+    if (el === hoverEl) return
+    hoverEl = el
+    hoverBlock = codeBlockAt(related)
+    updateTarget()
+  }
+  editor.view.dom.addEventListener('mouseover', onPointerOver)
+  editor.view.dom.addEventListener('mouseout', onPointerOut)
+
+  root.addEventListener('mouseenter', () => {
+    pickerHovered = true
+  })
+  root.addEventListener('mouseleave', (e) => {
+    pickerHovered = false
+    hoverEl = hoverElementOf(e.relatedTarget)
+    hoverBlock = codeBlockAt(e.relatedTarget)
+    updateTarget()
   })
 
   const onScroll = (): void => schedulePosition()
@@ -286,10 +430,13 @@ export function mountCodeBlockLangPicker(editor: Editor): LangPickerHandle {
       editor.off('selectionUpdate', refresh)
       editor.off('update', refresh)
       editor.off('focus', refresh)
+      editor.view.dom.removeEventListener('mouseover', onPointerOver)
+      editor.view.dom.removeEventListener('mouseout', onPointerOut)
       window.removeEventListener('scroll', onScroll, true)
       window.removeEventListener('resize', onResize)
       document.removeEventListener('mousedown', onDocumentMouseDown, true)
       if (positionRaf !== null) cancelAnimationFrame(positionRaf)
+      if (copyResetTimer !== null) clearTimeout(copyResetTimer)
       root.remove()
     },
   }

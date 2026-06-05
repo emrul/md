@@ -19,15 +19,30 @@ function eventCombo(e: KeyboardEvent): string | null {
 }
 
 export function installKeymap(): void {
-  document.addEventListener('keydown', (e) => {
-    const combo = eventCombo(e)
-    if (!combo) return
-    for (const cmd of commands.list()) {
-      if (cmd.keybinding === combo) {
-        e.preventDefault()
-        void cmd.handler()
-        return
+  // Capture phase, and stopPropagation on a match, so a registered combo never
+  // also reaches ProseMirror. Several of our verbs share a chord with a built-in
+  // TipTap shortcut (Bold→Mod-b, Italic→Mod-i, lists/blockquote/heading, …).
+  // PM handles the key on the editor element (bubble phase) and calls
+  // preventDefault but NOT stopPropagation, so the event used to bubble on to
+  // this document listener and toggle the same verb a SECOND time — a net no-op
+  // wherever PM's command actually applies (e.g. bold inside a table cell). It
+  // only "worked" in hybrid source blocks because PM's mark command is a no-op
+  // there (marks disallowed in the code-spec block), leaving us the sole
+  // handler. Intercepting first makes the command registry the single dispatch.
+  document.addEventListener(
+    'keydown',
+    (e) => {
+      const combo = eventCombo(e)
+      if (!combo) return
+      for (const cmd of commands.list()) {
+        if (cmd.keybinding === combo) {
+          e.preventDefault()
+          e.stopPropagation()
+          void cmd.handler()
+          return
+        }
       }
-    }
-  })
+    },
+    true,
+  )
 }
