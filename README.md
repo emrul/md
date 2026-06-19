@@ -35,7 +35,14 @@ wails3 dev
 wails3 task darwin:package           # macOS .app in bin/
 wails3 task darwin:package:universal # universal binary
 wails3 task windows:package          # Windows .exe
+wails3 task linux:package            # Linux AppImage / .deb / .rpm
 ```
+
+## System requirements
+
+- **macOS:** 11 (Big Sur) or later, Apple Silicon.
+- **Windows:** Windows 10 or later (WebView2 runtime; bundled by the installer).
+- **Linux:** A distribution shipping **GTK 4 + WebKitGTK 6.0 and glibc 2.38+** — e.g. **Ubuntu 24.04 / Linux Mint 22 / Debian 13** or newer. The Linux build links against the GTK4/WebKitGTK6 stack, which is not packaged on older releases (Ubuntu 22.04 / Mint 21 ship glibc 2.35 and only WebKit2GTK 4.1), so the AppImage will not run there. Older distros need to upgrade.
 
 ## License
 
